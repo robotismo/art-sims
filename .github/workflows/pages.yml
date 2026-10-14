@@ -1,0 +1,56 @@
+# Deploys the static site to GitHub Pages (served at https://paredes.dev/art-sims/).
+# There is no build step: the repo files are copied into _site/ as-is, without repo-only files.
+# One-time setup in the repo: Settings → Pages → Source = "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push queues behind a running deploy instead of cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Stage site into _site/
+        run: |
+          set -euo pipefail
+          rm -rf _site && mkdir _site
+          # Export the committed tree (no .git, no untracked files), then drop repo-only files.
+          # LICENSE and vendor/three/LICENSE are kept.
+          git archive --format=tar HEAD | tar -xf - -C _site
+          rm -rf _site/.github _site/scripts _site/README.md _site/.gitignore
+          test -f _site/index.html
+          test -f _site/LICENSE
+          test -f _site/vendor/three/LICENSE
+          find _site -type f | sort
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5
