@@ -3,7 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Leaf Atlas — Generative Botany Simulations</title>
+<title>Art Simulations — Leaf Atlas, Cosmos, Emergence, Magnum Opus</title>
+<meta name="description" content="Seventeen generative simulations in four volumes — leaf growth, GPU particle fields, emergent systems and a tapestry of light — each running live in the browser.">
+<link rel="canonical" href="https://paredes.dev/art-sims/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Art Simulations">
+<meta property="og:title" content="Art Simulations — Leaf Atlas, Cosmos, Emergence, Magnum Opus">
+<meta property="og:description" content="Seventeen generative simulations in four volumes — leaf growth, GPU particle fields, emergent systems and a tapestry of light — each running live in the browser.">
+<meta property="og:url" content="https://paredes.dev/art-sims/">
+<meta property="og:image" content="https://paredes.dev/art-sims/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Gallery of the Art Simulations series">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Art Simulations — Leaf Atlas, Cosmos, Emergence, Magnum Opus">
+<meta name="twitter:description" content="Seventeen generative simulations in four volumes — leaf growth, GPU particle fields, emergent systems and a tapestry of light — each running live in the browser.">
+<meta name="twitter:image" content="https://paredes.dev/art-sims/og.jpg">
+<meta name="twitter:image:alt" content="Gallery of the Art Simulations series">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#070b09">
 <style>
 :root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
 *{box-sizing:border-box}
@@ -36,85 +55,112 @@ h1{font-size:46px;margin:10px 0 6px;font-weight:600;letter-spacing:.01em}
 .tags{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
 .tag{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);
   border:1px solid rgba(232,196,94,.16);padding:4px 9px;border-radius:20px}
-.tilebadge{position:absolute;top:10px;right:10px;font-family:ui-monospace,monospace;font-size:9.5px;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);background:rgba(7,11,9,.72);
-  border:1px solid rgba(232,196,94,.4);padding:3px 9px;border-radius:20px;backdrop-filter:blur(4px)}
-.tilebadge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.45)}
+.intro{max-width:720px}
+.volnav{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+.volnav a{text-decoration:none}
+.volnav a:hover .tag,.volnav a:focus-visible .tag{color:var(--gold2);border-color:rgba(232,196,94,.45)}
+.note{color:var(--muted);font-size:13px;line-height:1.6;margin:12px 0 0;font-family:ui-monospace,'SF Mono',monospace;letter-spacing:.02em}
+.foot p{margin:0 0 12px}
+.foot a{color:var(--gold2);text-decoration:none;border-bottom:1px solid rgba(232,196,94,.3)}
+.card:focus-visible,.volnav a:focus-visible,.lede a:focus-visible,.foot a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+/* ── link to the main site, placed like the sims' back link (CONVENTIONS b) ── */
+a.back{position:absolute;top:14px;left:16px;z-index:10;display:inline-block;padding:6px 10px;border-radius:8px;
+  color:var(--muted);text-decoration:none;font-family:ui-monospace,'SF Mono',monospace;font-size:12px;letter-spacing:.08em;
+  background:rgba(7,11,9,.72);border:1px solid rgba(232,196,94,.16)}
+a.back:hover{color:var(--gold);border-color:rgba(232,196,94,.45)}
+a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(--gold2)}
+@media (max-width:900px){a.back{position:static;margin:-30px 0 22px}}
+@media (max-width:520px){
+  body{padding:46px 16px 70px}
+  h1{font-size:36px}
+  .volsplit h2{font-size:28px}
+  .grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
 </style>
 </head>
 <body>
+<a class="back" href="https://paredes.dev/">&larr; paredes.dev</a>
 <div class="wrap">
-  <div class="eyebrow">Art Simulations · Vol. I</div>
-  <h1>The Leaf Atlas</h1>
-  <p class="lede">Eight generative simulations that grow leaf structure from first principles — an algorithmic answer to
-  the <a href="https://huggingface.co/collections/lamm-mit/leaf-inspired-image-generation" target="_blank">lamm-mit
-  leaf-inspired image generation</a> collection, where MIT's Markus Buehler lab fine-tunes diffusion models on
-  <i>&lt;leaf microstructure&gt;</i> to design bio-materials. Where they sample, these compute. Click any tile to run it live.</p>
+  <header class="intro">
+    <div class="eyebrow">Generative art · four volumes</div>
+    <h1>Art Simulations</h1>
+    <p class="lede">Seventeen generative simulations that run live in the browser. The Leaf Atlas grows leaf structure
+    from first principles; Cosmos pushes millions of particles through velocity fields on the GPU; Emergence draws
+    order out of a few local rules; Magnum Opus gathers the series into one tapestry of light. Open any tile to run it.</p>
+    <nav class="volnav" aria-label="Volumes">
+      <a href="#leaf-atlas"><span class="tag">I · Leaf Atlas</span></a>
+      <a href="#cosmos"><span class="tag">II · Cosmos</span></a>
+      <a href="#emergence"><span class="tag">III · Emergence</span></a>
+      <a href="#magnum-opus"><span class="tag">IV · Magnum Opus</span></a>
+    </nav>
+    <p class="note">Pieces are numbered in the order they were made, so 14–16 sit in Vol. I, which they joined later.</p>
+  </header>
 
-  <div class="grid" id="grid"></div>
+  <section class="volsplit" id="leaf-atlas" aria-labelledby="h-leaf-atlas">
+    <div class="eyebrow">Art Simulations · Vol. I</div>
+    <h2 id="h-leaf-atlas">The Leaf Atlas</h2>
+    <p class="lede">Eight generative simulations that grow leaf structure from first principles — an algorithmic answer to
+    the <a href="https://huggingface.co/collections/lamm-mit/leaf-inspired-image-generation" target="_blank" rel="noopener">lamm-mit
+    leaf-inspired image generation</a> collection, where MIT's Markus Buehler lab fine-tunes diffusion models on
+    <i>&lt;leaf microstructure&gt;</i> to design bio-materials. Where they sample, these compute.</p>
+    <div class="grid" id="grid"></div>
+  </section>
 
-  <div class="volsplit">
+  <section class="volsplit" id="cosmos" aria-labelledby="h-cosmos">
     <div class="eyebrow">Art Simulations · Vol. II</div>
-    <h2>Cosmos</h2>
+    <h2 id="h-cosmos">Cosmos</h2>
     <p class="lede">Beyond the leaf. The first GPU-driven pieces — millions of particles advected on the graphics card,
     where the same handful of velocity fields that move smoke, chaos, and galaxies are made visible at once.</p>
-  </div>
+    <div class="grid" id="grid2"></div>
+  </section>
 
-  <div class="grid" id="grid2"></div>
-
-  <div class="volsplit">
+  <section class="volsplit" id="emergence" aria-labelledby="h-emergence">
     <div class="eyebrow">Art Simulations · Vol. III</div>
-    <h2>Emergence</h2>
+    <h2 id="h-emergence">Emergence</h2>
     <p class="lede">Order without a designer — three studies where elaborate structure falls out of a few local rules:
-    a lightning fractal, a fluid you can stir, and a flock with a hawk. Forged with
-    <b style="color:var(--gold2);font-style:normal">Opus&nbsp;4.8 · ultracode</b>.</p>
-  </div>
+    a lightning fractal, a fluid you can stir, and a flock with a hawk.</p>
+    <div class="grid" id="grid3"></div>
+  </section>
 
-  <div class="grid" id="grid3"></div>
-
-  <div class="volsplit">
+  <section class="volsplit" id="magnum-opus" aria-labelledby="h-magnum-opus">
     <div class="eyebrow">Art Simulations · Vol. IV</div>
-    <h2>Magnum Opus</h2>
-    <p class="lede">The crown. One piece that gathers everything the series learned — divergence-free flow, velocity-streak
-    rendering, an evolving timeline — into a living tapestry of millions of light-filaments that breathes through its
-    movements and never repeats. Forged with
-    <b style="color:var(--gold2);font-style:normal">Opus&nbsp;4.8</b>.</p>
-  </div>
+    <h2 id="h-magnum-opus">Magnum Opus</h2>
+    <p class="lede">One piece that gathers what the series learned — divergence-free flow, velocity-streak
+    rendering, an evolving timeline — into a tapestry of millions of light-filaments that passes through four
+    movements and never repeats.</p>
+    <div class="grid" id="grid4"></div>
+  </section>
 
-  <div class="grid" id="grid4"></div>
-
-  <div class="foot">
-    <b>Why these five.</b> Each maps an algorithm family onto a design principle the lamm-mit work targets — venation
-    hierarchy, cellular tissue, corrugated folding, vascular transport, and Fibonacci leaf arrangement. Every piece is a
-    single self-contained HTML file: vanilla canvas, no libraries, no build step. Open one and read its source.
-    <div class="tags">
-      <span class="tag">space colonization</span><span class="tag">gray–scott RD</span>
-      <span class="tag">differential growth</span><span class="tag">physarum</span>
-      <span class="tag">phyllotaxis</span>
-    </div>
-    <p style="margin-top:18px"><b>Sixteen pieces across three volumes — and still growing.</b> Queued next:
-    cymatics / Chladni plates · ferromagnetic spikes · crack propagation · more Cosmos GPGPU.</p>
-  </div>
+  <footer class="foot">
+    <p><b>How they are built.</b> Every piece is a single self-contained HTML file with no build step — open one and
+    read its source. The Leaf Atlas and Emergence draw on the 2D canvas in plain JavaScript. Cosmos and Magnum Opus run
+    on three.js r184 with WebGL2 GPGPU (positions and velocities live in floating-point textures), served from this
+    site rather than a CDN.</p>
+    <p><b>Credits.</b> Written with Anthropic's Claude models: 01–05 with Claude Fable 5; 06–10 and 14–17 with
+    Claude Opus 4.8; 11–13 with Claude Opus 4.8 in ultracode multi-agent mode.</p>
+    <p>© 2026 Joe Paredes · code under the MIT License · three.js © the three.js authors, MIT License.</p>
+  </footer>
 </div>
 
 <script>
-// lightweight generative glyphs — drawn once per card
+// lightweight generative glyphs — each card's canvas is drawn once (no animation loop)
 const SIMS=[
-  {n:'01',t:'Auxin Bloom',a:'space colonization · murray\'s law',href:'01-auxin-bloom/index.html',
+  {n:'01',t:'Auxin Bloom',a:'space colonization · murray\'s law',href:'01-auxin-bloom/',
    b:'Veins chase scattered hormone sources until a whole blade is fed, then thicken by Murray\'s law.',g:'branch'},
-  {n:'02',t:'Turing Tissue',a:'gray–scott reaction–diffusion',href:'02-turing-tissue/index.html',
+  {n:'02',t:'Turing Tissue',a:'gray–scott reaction–diffusion',href:'02-turing-tissue/',
    b:'Two diffusing reagents self-organize into veins, dividing cells, or coral — living cellwork.',g:'turing'},
-  {n:'03',t:'Crinkle Margin',a:'differential growth',href:'03-crinkle-margin/index.html',
+  {n:'03',t:'Crinkle Margin',a:'differential growth',href:'03-crinkle-margin/',
    b:'An over-grown edge buckles into ruffles — the physics of kale and dehydrated palm leaves.',g:'crinkle'},
-  {n:'04',t:'Slime Veins',a:'physarum stigmergy · 42k agents',href:'04-slime-veins/index.html',
+  {n:'04',t:'Slime Veins',a:'physarum stigmergy · 42k agents',href:'04-slime-veins/',
    b:'Blind agents lay and follow a chemical trail; an efficient transport network emerges and prunes itself.',g:'net'},
-  {n:'05',t:'Phyllotaxis Bloom',a:'golden-angle packing',href:'05-phyllotaxis-bloom/index.html',
+  {n:'05',t:'Phyllotaxis Bloom',a:'golden-angle packing',href:'05-phyllotaxis-bloom/',
    b:'One irrational turn of 137.5° packs primordia with no gaps; Fibonacci spirals fall out for free.',g:'spiral'},
-  {n:'14',t:'Frond',a:'L-system · turtle graphics',href:'14-frond/index.html',
+  {n:'14',t:'Frond',a:'L-system · turtle graphics',href:'14-frond/',
    b:'One rewrite rule, applied to itself, unfurls a self-similar fern with leaflets at every tip.',g:'fern'},
-  {n:'15',t:'Dendrite',a:'diffusion-limited aggregation',href:'15-dendrite/index.html',
+  {n:'15',t:'Dendrite',a:'diffusion-limited aggregation',href:'15-dendrite/',
    b:'Particles random-walk in and freeze on contact; exposed tips win, so roughness amplifies into a fractal.',g:'dla'},
-  {n:'16',t:'Areole',a:'voronoi · jump-flood + lloyd',href:'16-areole/index.html',
+  {n:'16',t:'Areole',a:'voronoi · jump-flood + lloyd',href:'16-areole/',
    b:'Nearest-seed cells tile a leaf and relax to an even mosaic — the tissue between the minor veins.',g:'voronoi'},
 ];
 const GOLD='#e8c45e',GOLD2='#f6e6a8',GRN='#2f9e6f';
@@ -276,39 +322,48 @@ function glyph(cv,kind,seed){
 }
 
 const SIMS2=[
-  {n:'06',t:'Flux',a:'curl-noise GPGPU · 1M+ points',href:'06-flux/index.html',
+  {n:'06',t:'Flux',a:'curl-noise GPGPU · 1M+ points',href:'06-flux/',
    b:'A million points of dust ride one GPU velocity field — breathe it into a curl-noise aurora, a strange attractor, or a spiral galaxy.',g:'flux'},
-  {n:'07',t:'Genesis',a:'newtonian n-body · gravity',href:'07-genesis/index.html',
+  {n:'07',t:'Genesis',a:'newtonian n-body · gravity',href:'07-genesis/',
    b:'A scatter of suns pulls a million grains of dust into filaments, clusters, and slow collapse.',g:'genesis'},
-  {n:'08',t:'Magnetosphere',a:'charged dust · magnetic dipole',href:'08-magnetosphere/index.html',
+  {n:'08',t:'Magnetosphere',a:'charged dust · magnetic dipole',href:'08-magnetosphere/',
    b:'Charged motes spiral down a planet\'s dipole field lines and burn in auroral sheets at the poles.',g:'magnetosphere'},
-  {n:'09',t:'Maelstrom',a:'point-vortex turbulence',href:'09-maelstrom/index.html',
+  {n:'09',t:'Maelstrom',a:'point-vortex turbulence',href:'09-maelstrom/',
    b:'A handful of whirlpools stir a sea of light into storms that merge, orbit, and devour one another.',g:'maelstrom'},
-  {n:'10',t:'Singularity',a:'black-hole accretion disk',href:'10-singularity/index.html',
+  {n:'10',t:'Singularity',a:'black-hole accretion disk',href:'10-singularity/',
    b:'A million motes fall toward a hole in space; the inner edge burns, Doppler-beamed bright by its own speed.',g:'singularity'},
 ];
 
 const SIMS3=[
-  {n:'11',t:'Lichtenberg',a:'dielectric breakdown · DBM',href:'11-lichtenberg/index.html',
-   b:'A stochastic Laplacian fractal grows a branched discharge outward — a Lichtenberg figure etched into the dark.',g:'bolt',badge:1},
-  {n:'12',t:'Stable Fluids',a:'navier–stokes · jos stam',href:'12-stable-fluids/index.html',
-   b:'A faithful semi-Lagrangian fluid solver you can stir by hand; ink unfurls and remembers every eddy.',g:'fluid',badge:1},
-  {n:'13',t:'Murmuration',a:'reynolds boids · spatial hash',href:'13-murmuration/index.html',
-   b:'2,500 starlings, three rules, one hawk — the rolling flash-waves of a murmuration with no leader.',g:'flock',badge:1},
+  {n:'11',t:'Lichtenberg',a:'dielectric breakdown · DBM',href:'11-lichtenberg/',
+   b:'A stochastic Laplacian fractal grows a branched discharge outward — a Lichtenberg figure etched into the dark.',g:'bolt'},
+  {n:'12',t:'Stable Fluids',a:'navier–stokes · jos stam',href:'12-stable-fluids/',
+   b:'A faithful semi-Lagrangian fluid solver you can stir by hand; ink unfurls and remembers every eddy.',g:'fluid'},
+  {n:'13',t:'Murmuration',a:'reynolds boids · spatial hash',href:'13-murmuration/',
+   b:'2,500 starlings, three rules, one hawk — the rolling flash-waves of a murmuration with no leader.',g:'flock'},
 ];
+
+// Thumbnails are drawn once, lazily: a tile is drawn when it comes near the viewport, and the rest are
+// drawn one per idle slot, so no single long task blocks the page on load (≈110 ms at 4× CPU throttle before).
+const pending=new Map();
+function drawThumb(cv){const job=pending.get(cv);if(!job)return;pending.delete(cv);if(io)io.unobserve(cv);glyph(cv,job[0],job[1]);}
+const io='IntersectionObserver' in window?new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting)drawThumb(e.target);},
+  {rootMargin:'300px 0px'}):null;
+const idle=window.requestIdleCallback||(cb=>setTimeout(()=>cb({timeRemaining:()=>0}),50));
+function drainIdle(){const next=pending.keys().next();if(next.done)return;
+  idle(()=>{drawThumb(next.value);drainIdle();});}
 
 function makeCard(s,seed,grid){
   const a=document.createElement('a');a.className='card';a.href=s.href;
-  const cv=document.createElement('canvas');cv.className='thumb';
+  const cv=document.createElement('canvas');cv.className='thumb';cv.width=600;cv.height=375;
+  cv.setAttribute('aria-hidden','true');
   a.appendChild(cv);
-  const _fable=parseInt(s.n,10)<=5;
-  const _bd=document.createElement('div');_bd.className='tilebadge'+(_fable?' fable':'');
-  _bd.textContent=_fable?'Fable 5':(s.badge?'Opus 4.8 · ultracode':'Opus 4.8');a.appendChild(_bd);
   const m=document.createElement('div');m.className='meta';
   m.innerHTML=`<div class="num">${s.n}</div><div class="title">${s.t}</div>
     <div class="algo">${s.a}</div><div class="blurb">${s.b}</div>`;
   a.appendChild(m);grid.appendChild(a);
-  glyph(cv,s.g,seed);
+  pending.set(cv,[s.g,seed]);
+  if(io)io.observe(cv);
 }
 const grid=document.getElementById('grid');
 SIMS.forEach((s,i)=>makeCard(s,(i+1)*9173+7,grid));
@@ -318,11 +373,12 @@ const grid3=document.getElementById('grid3');
 SIMS3.forEach((s,i)=>makeCard(s,(i+11)*7919+5,grid3));
 
 const SIMS4=[
-  {n:'17',t:'Aurelian',a:'curl-noise flow · velocity-streak lines · 2M+',href:'17-aurelian/index.html',
+  {n:'17',t:'Aurelian',a:'curl-noise flow · velocity-streak lines · 2M+',href:'17-aurelian/',
    b:'Millions of velocity-streak filaments woven by a divergence-free flow — a living tapestry that breathes through laminar, turbulent, vortical and calm movements, and never repeats.',g:'weave'},
 ];
 const grid4=document.getElementById('grid4');
 SIMS4.forEach((s,i)=>makeCard(s,(i+17)*6271+9,grid4));
+if(io)drainIdle();else[...pending.keys()].forEach(drawThumb);
 </script>
 </body>
 </html>
