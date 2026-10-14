@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turing Tissue — Reaction–Diffusion</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:92vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:840px}
+button,select{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 14px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover,select:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:110px}
+.caption{max-width:680px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 02 · Reaction–Diffusion</div>
+<div class="badge fable">Fable 5</div>
+<h1>Turing Tissue</h1>
+<p class="sub">Two chemicals chase each other into living cellwork.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Reseed</button>
+  <div class="ctl">pattern
+    <select id="preset">
+      <option value="veins">veins / maze</option>
+      <option value="cells">cells / mitosis</option>
+      <option value="coral">coral</option>
+      <option value="worms">worms</option>
+    </select>
+  </div>
+  <div class="ctl">flow <input id="spd" type="range" min="4" max="22" value="12"></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">The <b>Gray–Scott</b> model runs two diffusing reagents — feed <i>U</i>, kill <i>V</i> — across a grid
+clipped to a leaf. Tiny rate changes flip the system between labyrinthine veins, dividing cells, and coral fronds: the
+same self-organizing <b>cellular geometry and tissue density</b> lamm-mit highlights as a target for moisture-responsive,
+load-bearing bio-materials.</p>
+<script>
+const canvas=document.getElementById('c');
+const DISP=760, N=180, S=DISP/N;          // display px, grid cells, scale
+canvas.width=DISP;canvas.height=DISP;canvas.style.maxWidth='92vw';
+const ctx=canvas.getContext('2d');
+const off=document.createElement('canvas');off.width=N;off.height=N;
+const octx=off.getContext('2d');const img=octx.createImageData(N,N);
+
+const PRESETS={veins:{f:0.030,k:0.0565},cells:{f:0.0367,k:0.0649},coral:{f:0.0545,k:0.062},worms:{f:0.050,k:0.062}};
+const Du=0.16,Dv=0.08;
+let u=new Float32Array(N*N),v=new Float32Array(N*N),u2=new Float32Array(N*N),v2=new Float32Array(N*N);
+let mask=new Uint8Array(N*N);
+let f=PRESETS.veins.f,k=PRESETS.veins.k,iters=12;
+
+function halfWidth(t){t=Math.min(Math.max(t,0),1);return 0.5*Math.pow(Math.sin(Math.PI*t),0.62)*(1-0.30*t);}
+function buildMask(){const cx=N/2,bot=N-10,top=8,LH=bot-top,LW=N*0.96;
+  for(let gy=0;gy<N;gy++)for(let gx=0;gx<N;gx++){
+    const tv=(bot-gy)/LH;let inside=false;
+    if(tv>=0&&tv<=1){const hw=halfWidth(tv)*LW;inside=Math.abs(gx-cx)<=hw;}
+    mask[gy*N+gx]=inside?1:0;}}
+
+function seed(){
+  for(let i=0;i<N*N;i++){u[i]=1;v[i]=0;}
+  for(let s=0;s<26;s++){const cx=8+Math.random()*(N-16),cy=8+Math.random()*(N-16),r=3+Math.random()*4;
+    for(let gy=-r;gy<=r;gy++)for(let gx=-r;gx<=r;gx++){
+      const x=Math.round(cx+gx),y=Math.round(cy+gy);if(x<0||y<0||x>=N||y>=N)continue;
+      if(gx*gx+gy*gy<=r*r){const i=y*N+x;u[i]=0.5;v[i]=0.92;}}}
+}
+
+function tick(){
+  for(let it=0;it<iters;it++){
+    for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){const i=y*N+x;
+      const lu=u[i-1]+u[i+1]+u[i-N]+u[i+N]+0.5*(u[i-N-1]+u[i-N+1]+u[i+N-1]+u[i+N+1])-6*u[i];
+      const lv=v[i-1]+v[i+1]+v[i-N]+v[i+N]+0.5*(v[i-N-1]+v[i-N+1]+v[i+N-1]+v[i+N+1])-6*v[i];
+      const uvv=u[i]*v[i]*v[i];
+      u2[i]=u[i]+(Du*lu-uvv+f*(1-u[i]));
+      v2[i]=v[i]+(Dv*lv+uvv-(f+k)*v[i]);}
+    const tu=u;u=u2;u2=tu;const tv=v;v=v2;v2=tv;
+  }
+}
+
+// palette: dark-green -> emerald -> gold -> pale gold, by V
+function paint(){const d=img.data;
+  for(let i=0;i<N*N;i++){let val=v[i]*2.6;if(val>1)val=1;if(val<0)val=0;
+    let r,g,b;
+    if(val<0.5){const t=val/0.5;r=14+t*(47-14);g=26+t*(158-26);b=20+t*(111-20);}      // green ramp
+    else{const t=(val-0.5)/0.5;r=47+t*(246-47);g=158+t*(228-158);b=111+t*(150-111);}   // gold ramp
+    if(!mask[i]){r=8;g=14;b=12;}
+    const j=i*4;d[j]=r;d[j+1]=g;d[j+2]=b;d[j+3]=255;}
+  octx.putImageData(img,0,0);
+  ctx.clearRect(0,0,DISP,DISP);
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,DISP,DISP);
+  // faint glow re-draw
+  ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.25;ctx.drawImage(off,0,0,DISP,DISP);
+  ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+}
+
+let raf;
+function loop(){tick();paint();raf=requestAnimationFrame(loop);}
+function start(){cancelAnimationFrame(raf);const p=PRESETS[preset.value];f=p.f;k=p.k;iters=+spd.value;
+  buildMask();seed();loop();}
+
+const preset=document.getElementById('preset'),spd=document.getElementById('spd');
+document.getElementById('regen').onclick=start;
+preset.onchange=()=>{const p=PRESETS[preset.value];f=p.f;k=p.k;seed();};
+spd.oninput=()=>iters=+spd.value;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='turing-tissue.png';a.href=canvas.toDataURL('image/png');a.click();};
+start();
+</script>
+</body>
+</html>

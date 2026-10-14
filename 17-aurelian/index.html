@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurelian — A Living Tapestry of Light</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:24px 18px 60px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+.badge{display:inline-block;margin:8px 0 2px;font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.18em;
+  color:var(--gold2);border:1px solid rgba(232,196,94,.4);border-radius:20px;padding:3px 11px}
+h1{font-size:34px;margin:6px 0 2px;font-weight:600;letter-spacing:.01em}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic;text-align:center;max-width:720px;line-height:1.5}
+.stage{position:relative;border-radius:14px;overflow:hidden;width:clamp(360px,95vw,1320px);height:clamp(380px,76vh,800px);
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 90px -34px #000;background:#04060a}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;top:12px;left:14px;font-family:ui-monospace,monospace;font-size:11px;
+  color:var(--muted);letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 3px #000}
+.hud b{color:var(--gold2);font-weight:500}
+.modechip{position:absolute;top:12px;right:14px;font-family:ui-monospace,monospace;font-size:11px;
+  letter-spacing:.22em;color:var(--gold);pointer-events:none;text-shadow:0 1px 3px #000}
+.hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:ui-monospace,monospace;
+  font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
+.banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+  padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04060ae6}
+.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 10px;max-width:1180px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:8px 14px;border-radius:9px;font:inherit;font-size:12.5px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 16px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:92px}
+.caption{max-width:740px;text-align:center;color:var(--muted);font-size:13px;line-height:1.62;margin-top:6px}
+.caption b{color:var(--ink);font-weight:600}
+.caption .live{color:var(--gold2)}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;z-index:5}
+a.back:hover{color:var(--gold)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 17 · Vol. IV · Magnum Opus</div>
+<div class="badge">Opus 4.8</div>
+<h1>Aurelian</h1>
+<p class="sub">A living tapestry of light — millions of velocity-streak filaments woven by a divergence-free flow that breathes through laminar, turbulent, vortical, and calm movements, and never repeats.</p>
+
+<div class="stage" id="stage">
+  <canvas id="c"></canvas>
+  <div class="hud" id="hud">—</div>
+  <div class="modechip" id="modechip">LAMINAR</div>
+  <div class="hint" id="hint">drag to comb the silk · scroll to dive · it heals as you go</div>
+  <div class="banner" id="banner"></div>
+</div>
+
+<div class="controls">
+  <button id="reseed">⟳ Reseed</button>
+  <div class="ctl">turbulence <input id="s_turb" type="range" min="0" max="200" value="100"></div>
+  <div class="ctl">swirl <input id="s_swirl" type="range" min="0" max="200" value="100"></div>
+  <div class="ctl">streak <input id="s_streak" type="range" min="20" max="220" value="100"></div>
+  <div class="ctl">glow <input id="s_glow" type="range" min="20" max="180" value="100"></div>
+  <button id="push">▲ Push it · 2.1M</button>
+  <button id="save">⤓ Save PNG</button>
+</div>
+
+<p class="caption" id="caption"></p>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+import { EffectComposer }   from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }       from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }  from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }       from 'three/addons/postprocessing/OutputPass.js';
+import { OrbitControls }    from 'three/addons/controls/OrbitControls.js';
+
+/* ─────────────────────────  constants / state  ───────────────────────── */
+const BOUND = 130.0, KILL = 230.0, MAX_VORT = 8;
+const PRESETS = [
+  { tex:1024, label:'1.0M' },
+  { tex:1448, label:'2.1M' },
+  { tex:2048, label:'4.2M' },
+  { tex:2560, label:'6.6M' },
+];
+let presetIdx = 1;                  // 2.1M default — instant 60fps; "Push it" climbs to 4.2M / 6.6M
+let texSize = PRESETS[presetIdx].tex;
+const clock = new THREE.Clock();
+
+/* live-eased composition state (the director drives these toward each movement's targets) */
+const comp = { lamAmp:22, turbAmp:2, vortAmp:0, turbScale:0.05, streak:1.7, warm:0.0, glow:0.8 };
+/* user multipliers (sliders nudge the breathing composition) */
+const ui = { turb:1.0, swirl:1.0, streak:1.0, glow:1.0 };
+
+/* ─────────────────────────  shared GLSL chunks  ───────────────────────── */
+const HASH = `
+float hash11(float p){ p=fract(p*0.1031); p*=p+33.33; p*=p+p; return fract(p); }
+vec3 hash33(vec3 p3){
+  p3=fract(p3*vec3(0.1031,0.1030,0.0973));
+  p3+=dot(p3,p3.yxz+33.33);
+  return fract((p3.xxy+p3.yxx)*p3.zyx);
+}`;
+const SNOISE = `
+vec4 permute(vec4 x){ return mod(((x*34.0)+1.0)*x,289.0); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159-0.85373472095314*r; }
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+1.0*C.xxx; vec3 x2=x0-i2+2.0*C.xxx; vec3 x3=x0-1.0+3.0*C.xxx;
+  i=mod(i,289.0);
+  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=1.0/7.0; vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z);
+  vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}
+vec3 snoiseVec3(vec3 x){
+  return vec3(snoise(x),
+              snoise(x+vec3(123.4,517.1,931.7)),
+              snoise(x+vec3(-415.3,251.9,-741.2)));
+}
+vec3 curlNoise(vec3 p){
+  const float e=0.16;
+  vec3 dx=vec3(e,0.0,0.0), dy=vec3(0.0,e,0.0), dz=vec3(0.0,0.0,e);
+  vec3 px0=snoiseVec3(p-dx), px1=snoiseVec3(p+dx);
+  vec3 py0=snoiseVec3(p-dy), py1=snoiseVec3(p+dy);
+  vec3 pz0=snoiseVec3(p-dz), pz1=snoiseVec3(p+dz);
+  float x=(py1.z-py0.z)-(pz1.y-pz0.y);
+  float y=(pz1.x-pz0.x)-(px1.z-px0.z);
+  float z=(px1.y-px0.y)-(py1.x-py0.x);
+  return vec3(x,y,z)/(2.0*e);
+}`;
+// seed onto a soft spherical volume so the weave continuously renews (shared by both compute shaders)
+const SEED = `
+uniform float uBound;
+vec3 seedPosition(vec2 ref, float t){
+  vec3 h = hash33(vec3(ref*vec2(443.7,191.3), t*0.017));
+  vec3 dir = normalize(h-0.5+vec3(1e-4));
+  float rad = uBound*(0.55 + 0.42*h.z);          // a thick hollow SHELL — no central pile-up to blow out
+  return dir*rad;
+}`;
+
+/* ─────────────────────────  velocity compute shader  ───────────────────────── */
+const VELOCITY_FRAG = `
+uniform float uTime, uDelta;
+uniform float uLamAmp, uLamScale, uLamDrift, uTurbAmp, uTurbScale, uTurbDrift, uVortAmp;
+uniform float uResponse, uDamp, uMaxSpeed, uKillRadius, uContain;
+uniform vec3  uOff0, uOff1;
+uniform vec4  uVortPos[8];     // xyz = centre, w = circulation Γ
+uniform vec4  uVortAxis[8];    // xyz = axis (unit), w = core radius
+uniform int   uNumVort;
+uniform vec3  uMouseOrigin, uMouseDir;
+uniform float uStirStrength, uStirRadius, uStirRadial;
+${HASH}
+${SNOISE}
+${SEED}
+
+vec3 clampLen(vec3 v, float m){ float l=length(v); return l>m ? v*(m/l) : v; }
+
+// sum of solenoidal Lamb–Oseen line-vortices -> braids the ribbons into spiral cores (Movement III)
+vec3 vortexField(vec3 p){
+  vec3 v = vec3(0.0);
+  for(int i=0;i<8;i++){
+    if(i>=uNumVort) break;
+    vec3 c = uVortPos[i].xyz; float gamma = uVortPos[i].w;
+    vec3 a = normalize(uVortAxis[i].xyz + vec3(1e-5)); float core = uVortAxis[i].w;
+    vec3 d = p - c;
+    vec3 dperp = d - a*dot(d,a);
+    float r = length(dperp) + 1e-3;
+    vec3 tang = normalize(cross(a, dperp) + vec3(1e-5));
+    float vth = (gamma/(6.28318530718*r)) * (1.0 - exp(-r*r/(core*core)));   // regularized core
+    v += tang*vth;
+  }
+  return v;
+}
+vec3 pointerForce(vec3 pos){
+  if(uStirStrength<=0.001) return vec3(0.0);
+  vec3 o=uMouseOrigin, d=uMouseDir;
+  float t = max(dot(pos-o,d), 0.0);
+  vec3 closest = o + d*t;
+  vec3 toP = pos - closest;
+  float dist = length(toP)+1e-3;
+  float fall = exp(-(dist*dist)/(uStirRadius*uStirRadius));
+  vec3 tang = normalize(cross(d, toP)+vec3(1e-5));
+  vec3 rad  = toP/dist;
+  return (tang + rad*uStirRadial) * uStirStrength * fall;
+}
+vec3 containment(vec3 pos){
+  float dl = length(pos)+1e-3;
+  float k = smoothstep(uContain*0.85, uContain*1.5, dl);
+  return -(pos/dl)*k*40.0;
+}
+
+void main(){
+  vec2 uv = gl_FragCoord.xy/resolution.xy;
+  vec4 P = texture2D(texturePosition, uv); vec3 pos = P.xyz; float life = P.w;
+  vec4 V = texture2D(textureVelocity, uv); vec3 vel = V.xyz; float age = V.w;
+
+  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+  if(reseed){
+    vec3 sp = seedPosition(uv, uTime);
+    vec3 nv = cross(vec3(0.0,1.0,0.0), sp)*0.03;   // a whisper of initial swirl
+    gl_FragColor = vec4(nv, 0.0);
+    return;
+  }
+
+  // composed, fully divergence-free velocity field (a weighted sum of solenoidal terms)
+  vec3 field  = uLamAmp  * curlNoise(pos*uLamScale  + uTime*uLamDrift  + uOff0);   // I. laminar base
+  field      += uTurbAmp * curlNoise(pos*uTurbScale + uTime*uTurbDrift + uOff1);   // II. turbulence octave
+  field      += uVortAmp * vortexField(pos);                                       // III. line-vortices
+
+  vec3 shared = (pointerForce(pos) + containment(pos)) * uDelta;
+  vec3 nv = mix(vel, field, uResponse) + shared;   // momentum -> coherent silk
+  nv *= uDamp;
+  nv = clampLen(nv, uMaxSpeed);
+
+  age += uDelta;
+  gl_FragColor = vec4(nv, age);
+}`;
+
+/* ─────────────────────────  position compute shader  ───────────────────────── */
+const POSITION_FRAG = `
+uniform float uTime, uDelta, uKillRadius, uLifeRate;
+${HASH}
+${SEED}
+void main(){
+  vec2 uv = gl_FragCoord.xy/resolution.xy;
+  vec4 P = texture2D(texturePosition, uv); vec3 pos = P.xyz; float life = P.w;
+  vec3 vel = texture2D(textureVelocity, uv).xyz;
+  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+  if(reseed){
+    pos  = seedPosition(uv, uTime);
+    life = 0.55 + 0.45*hash11(uv.x*51.3+uv.y*19.1+uTime*0.013);
+  } else {
+    pos += vel*uDelta;
+    float rate = uLifeRate*(0.5+hash11(uv.x*131.7+uv.y*97.3));
+    life -= rate*uDelta;
+  }
+  gl_FragColor = vec4(pos, life);
+}`;
+
+/* ─── render: each grain is a velocity-aligned LINE SEGMENT (a silk filament) ─── */
+const POINTS_VERT = `
+uniform sampler2D texturePosition;
+uniform sampler2D textureVelocity;
+uniform float uPixelRatio, uSpeedScale, uTrail, uMaxStreak;
+attribute vec2 reference;
+attribute float aEnd;                  // 0 = head (at pos), 1 = tail (back along velocity)
+varying float vSpeed; varying float vLife; varying float vDepth; varying float vEnd;
+void main(){
+  vec4 P = texture2D(texturePosition, reference);
+  vec3 pos = P.xyz; vLife = P.w;
+  vec3 vel = texture2D(textureVelocity, reference).xyz;
+  vSpeed = clamp(length(vel)/uSpeedScale, 0.0, 1.0);
+  vEnd = aEnd;
+  vec3 back = vel*uTrail;                          // streak length proportional to speed
+  float bl = length(back);
+  back = bl>uMaxStreak ? back*(uMaxStreak/bl) : back;
+  vec3 world = pos - aEnd*back;
+  vec4 mv = modelViewMatrix * vec4(world,1.0);
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+}`;
+
+const POINTS_FRAG = `
+precision highp float;
+uniform float uExposure, uFogDensity, uWarm;
+varying float vSpeed; varying float vLife; varying float vDepth; varying float vEnd;
+vec3 ramp(float t){
+  vec3 c0=vec3(0.04,0.40,0.24);   // deep emerald
+  vec3 c1=vec3(0.07,0.58,0.46);   // teal
+  vec3 c2=vec3(0.92,0.70,0.22);   // warm gold #e8c45e
+  vec3 c3=vec3(1.05,0.95,0.64);   // pale gold #f6e6a8
+  vec3 c4=vec3(1.40,1.30,1.10);   // hot white (HDR)
+  vec3 c;
+  if(t<0.46)      c=mix(c0,c1,smoothstep(0.0,0.46,t));
+  else if(t<0.72) c=mix(c1,c2,smoothstep(0.46,0.72,t));
+  else if(t<0.90) c=mix(c2,c3,smoothstep(0.72,0.90,t));
+  else            c=mix(c3,c4,smoothstep(0.90,1.0,t));
+  return c;
+}
+void main(){
+  float t = clamp(vSpeed + uWarm*0.20, 0.0, 1.0);
+  vec3 col = ramp(t);
+  float fade = smoothstep(0.0,0.18,vLife);
+  float fog  = exp(-vDepth*uFogDensity);
+  float streak = 1.0-vEnd; streak *= streak;       // bright head -> fading tail = direction reads instantly
+  vec3 c = col * fade * fog * uExposure * (0.14 + 0.86*streak);
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
+/* ─────────────────────────  renderer / scene  ───────────────────────── */
+const canvas = document.getElementById('c');
+const stage  = document.getElementById('stage');
+const banner = document.getElementById('banner');
+
+let renderer, scene, camera, controls, composer, bloomPass, gpu;
+let posVar, velVar, simU, points, geomRef = null;
+
+function stageSize(){ return { w: stage.clientWidth||1180, h: stage.clientHeight||680 }; }
+
+renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, preserveDrawingBuffer:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+{ const s=stageSize(); renderer.setSize(s.w, s.h, false); }
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+scene = new THREE.Scene();
+scene.background = makeBackgroundTexture();
+{ const s=stageSize(); camera = new THREE.PerspectiveCamera(56, s.w/s.h, 1, 5000); }
+camera.position.set(0, 64, 312);
+
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.minDistance = 40; controls.maxDistance = 1400; controls.autoRotateSpeed = 0.42;
+
+function makeBackgroundTexture(){
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+  const g = cv.getContext('2d');
+  const rad = g.createRadialGradient(256,205,28, 256,256,370);
+  rad.addColorStop(0,'#0b1411'); rad.addColorStop(0.55,'#070d0b'); rad.addColorStop(1,'#04060a');
+  g.fillStyle = rad; g.fillRect(0,0,512,512);
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+  return tx;
+}
+
+/* ─────────────────────────  Lamb–Oseen vortices (CPU; drift each frame)  ───────────────────────── */
+let vortices = [];                                  // [{c:Vector3, axis:Vector3, gamma, core, drift:Vector3}]
+const vortPosArr  = (()=>{ const a=[]; for(let i=0;i<MAX_VORT;i++) a.push(new THREE.Vector4()); return a; })();
+const vortAxisArr = (()=>{ const a=[]; for(let i=0;i<MAX_VORT;i++) a.push(new THREE.Vector4()); return a; })();
+
+function layoutVortices(){
+  const n = 4 + (Math.random()*3|0);                // 4–6
+  vortices = [];
+  for(let i=0;i<n;i++){
+    const u=Math.random()*2-1, th=Math.random()*Math.PI*2, rr=BOUND*0.55*Math.cbrt(Math.random());
+    const s=Math.sqrt(1-u*u);
+    const c = new THREE.Vector3(Math.cos(th)*s*rr, u*rr*0.8, Math.sin(th)*s*rr);
+    const axis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5);
+    if(axis.lengthSq()<1e-4) axis.set(0,1,0); axis.normalize();
+    const gamma = (Math.random()<0.5?-1:1) * (520 + Math.random()*620);
+    const core  = 16 + Math.random()*22;
+    const drift = new THREE.Vector3((Math.random()-0.5),(Math.random()-0.5),(Math.random()-0.5)).multiplyScalar(5.5);
+    vortices.push({c, axis, gamma, core, drift});
+  }
+  pushVortices();
+}
+function stepVortices(dt){
+  for(const v of vortices){
+    v.c.addScaledVector(v.drift, dt);
+    if(v.c.length() > BOUND*0.95){ v.drift.reflect(v.c.clone().normalize()).multiplyScalar(0.92); }
+    v.axis.x += (Math.random()-0.5)*0.01; v.axis.normalize();   // gentle precession
+  }
+  pushVortices();
+}
+function pushVortices(){
+  const sw = ui.swirl;
+  for(let i=0;i<MAX_VORT;i++){
+    if(i<vortices.length){ const v=vortices[i];
+      vortPosArr[i].set(v.c.x, v.c.y, v.c.z, v.gamma*sw);
+      vortAxisArr[i].set(v.axis.x, v.axis.y, v.axis.z, v.core);
+    } else { vortPosArr[i].set(0,0,0,0); vortAxisArr[i].set(0,1,0,1); }
+  }
+  if(simU){ simU.uVortPos.value=vortPosArr; simU.uVortAxis.value=vortAxisArr; simU.uNumVort.value=vortices.length; }
+}
+
+/* ─────────────────────────  GPGPU init / rebuild  ───────────────────────── */
+function makeSimUniforms(){
+  return {
+    uTime:{value:0}, uDelta:{value:0},
+    uLamAmp:{value:comp.lamAmp}, uLamScale:{value:0.012}, uLamDrift:{value:0.10},
+    uTurbAmp:{value:comp.turbAmp}, uTurbScale:{value:comp.turbScale}, uTurbDrift:{value:0.26},
+    uVortAmp:{value:comp.vortAmp},
+    uResponse:{value:0.07}, uDamp:{value:0.992}, uMaxSpeed:{value:64.0},
+    uKillRadius:{value:KILL}, uContain:{value:BOUND}, uBound:{value:BOUND}, uLifeRate:{value:0.045},
+    uOff0:{value:new THREE.Vector3()}, uOff1:{value:new THREE.Vector3(50,50,50)},
+    uVortPos:{value:vortPosArr}, uVortAxis:{value:vortAxisArr}, uNumVort:{value:0},
+    uMouseOrigin:{value:new THREE.Vector3()}, uMouseDir:{value:new THREE.Vector3(0,0,-1)},
+    uStirStrength:{value:0.0}, uStirRadius:{value:48.0}, uStirRadial:{value:0.0},
+  };
+}
+
+function buildSim(size){
+  texSize = size;
+  if(gpu){ gpu.dispose && gpu.dispose(); }
+  gpu = new GPUComputationRenderer(size, size, renderer);
+  const dtPos = gpu.createTexture(), dtVel = gpu.createTexture();
+  seedTextures(dtPos, dtVel, size);
+  velVar = gpu.addVariable('textureVelocity', VELOCITY_FRAG, dtVel);
+  posVar = gpu.addVariable('texturePosition', POSITION_FRAG, dtPos);
+  gpu.setVariableDependencies(velVar, [posVar, velVar]);
+  gpu.setVariableDependencies(posVar, [posVar, velVar]);
+  simU = makeSimUniforms();
+  for(const k in simU){ velVar.material.uniforms[k] = simU[k]; }
+  for(const k of ['uTime','uDelta','uKillRadius','uLifeRate','uBound']){ posVar.material.uniforms[k] = simU[k]; }
+  let err = gpu.init();
+  if(err !== null){
+    gpu.setDataType && gpu.setDataType(THREE.HalfFloatType); err = gpu.init();
+    if(err !== null){ showBanner('This GPU can’t render to float textures, so the engine can’t run.<br>'+err); throw new Error(err); }
+  }
+  pushVortices();
+  buildPoints(size);
+  document.getElementById('push').textContent = '▲ Push it · '+PRESETS[presetIdx].label;
+}
+
+function seedTextures(dtPos, dtVel, size){
+  const p = dtPos.image.data, v = dtVel.image.data;
+  for(let i=0;i<size*size;i++){
+    const k=i*4;
+    const u=Math.random()*2-1, th=Math.random()*Math.PI*2, rr=BOUND*(0.55+0.42*Math.random());
+    const s=Math.sqrt(1-u*u);
+    const x=Math.cos(th)*s*rr, y=u*rr, z=Math.sin(th)*s*rr;
+    p[k]=x; p[k+1]=y; p[k+2]=z; p[k+3]=Math.random();
+    v[k]=-z*0.02; v[k+1]=0; v[k+2]=x*0.02; v[k+3]=Math.random()*5;
+  }
+}
+
+function buildPoints(size){
+  const n = size*size;
+  if(points){ scene.remove(points); points.geometry.dispose(); points.material.dispose(); }
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(n*2*3);
+  const refs = new Float32Array(n*2*2);
+  const ends = new Float32Array(n*2);
+  for(let i=0;i<n;i++){
+    const ux=(i%size)/size, uy=Math.floor(i/size)/size;
+    refs[i*4]=ux; refs[i*4+1]=uy; refs[i*4+2]=ux; refs[i*4+3]=uy;
+    ends[i*2]=0.0; ends[i*2+1]=1.0;
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  geom.setAttribute('reference', new THREE.BufferAttribute(refs,2));
+  geom.setAttribute('aEnd', new THREE.BufferAttribute(ends,1));
+  geomRef = geom;
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{
+      texturePosition:{value:null}, textureVelocity:{value:null},
+      uPixelRatio:{value:renderer.getPixelRatio()}, uSpeedScale:{value:70.0},
+      uTrail:{value:comp.streak}, uMaxStreak:{value:26.0},
+      uExposure:{value:0.011}, uFogDensity:{value:0.0019}, uWarm:{value:0.0},
+    },
+    vertexShader: POINTS_VERT, fragmentShader: POINTS_FRAG,
+    transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
+  });
+  points = new THREE.LineSegments(geom, mat);
+  points.frustumCulled = false;
+  scene.add(points);
+}
+
+/* ─────────────────────────  post-processing  ───────────────────────── */
+function buildComposer(){
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w,s.h), comp.glow, 0.62, 0.38); }
+  composer.addPass(bloomPass);
+  composer.addPass(new OutputPass());
+  sizeComposer();
+}
+function sizeComposer(){
+  const s=stageSize();
+  composer.setSize(s.w,s.h);
+  const br = (texSize>=1448)?0.5:1.0;
+  bloomPass.setSize(s.w*br, s.h*br);
+}
+
+/* ─────────────────────────  the director: movements that never repeat  ───────────────────────── */
+const MOVEMENTS = [
+  { name:'LAMINAR',   dur:[52,68], t:{ lamAmp:24, turbAmp:2.0,  vortAmp:0.0, turbScale:0.045, streak:1.9, warm:-0.05, glow:0.72 } },
+  { name:'TURBULENT', dur:[58,78], t:{ lamAmp:17, turbAmp:18.0, vortAmp:0.0, turbScale:0.052, streak:1.5, warm: 0.28, glow:0.92 } },
+  { name:'VORTICAL',  dur:[64,84], t:{ lamAmp:12, turbAmp:9.0,  vortAmp:1.0, turbScale:0.050, streak:1.3, warm: 0.16, glow:1.05 } },
+  { name:'CALM',      dur:[46,60], t:{ lamAmp:20, turbAmp:0.6,  vortAmp:0.0, turbScale:0.040, streak:2.2, warm:-0.12, glow:0.64 } },
+];
+let movIdx = 0, movClock = 0, movDur = 60, paused = false;
+function rngDur(i){ const d=MOVEMENTS[i].dur; return d[0]+Math.random()*(d[1]-d[0]); }
+function enterMovement(i){
+  movIdx = i; movClock = 0; movDur = rngDur(i);
+  document.getElementById('modechip').textContent = MOVEMENTS[i].name;
+  if(MOVEMENTS[i].name==='VORTICAL') layoutVortices();
+}
+function advanceDirector(dt){
+  movClock += dt;
+  if(movClock > movDur){
+    const next = (movIdx+1)%MOVEMENTS.length;
+    if(next===0) reseedField();                 // a full cycle done -> fresh tapestry
+    enterMovement(next);
+  }
+  // ease the live composition toward the active movement's targets (exponential, ~5s settle)
+  const tg = MOVEMENTS[movIdx].t;
+  const a = 1.0 - Math.exp(-dt/4.5);
+  for(const k in tg) comp[k] += (tg[k]-comp[k])*a;
+  if(MOVEMENTS[movIdx].name==='VORTICAL') stepVortices(dt);
+  // a slow breathing of the laminar scale so even a held movement is alive
+  simU.uLamScale.value = 0.012 + 0.004*Math.sin(simU.uTime.value*0.05);
+}
+
+let forceReseedPulse = 0;
+function reseedField(){
+  simU.uOff0.value.set((Math.random()-0.5)*200,(Math.random()-0.5)*200,(Math.random()-0.5)*200);
+  simU.uOff1.value.set((Math.random()-0.5)*200,(Math.random()-0.5)*200,(Math.random()-0.5)*200);
+  simU.uTime.value += 137.5;
+  layoutVortices();
+}
+function reseedAll(){
+  reseedField();
+  forceReseedPulse = 2;
+  enterMovement(0);
+}
+
+/* ─────────────────────────  pointer interaction  ───────────────────────── */
+const ndc = new THREE.Vector2();
+let stirTarget = 0, lastInput = performance.now(), pointerDown = false, pointerBtn = 0;
+function setRay(e){
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  ndc.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  const o = camera.getWorldPosition(new THREE.Vector3());
+  const far = new THREE.Vector3(ndc.x, ndc.y, 0.5).unproject(camera);
+  simU.uMouseOrigin.value.copy(o);
+  simU.uMouseDir.value.copy(far.sub(o).normalize());
+}
+canvas.addEventListener('pointermove', e=>{
+  setRay(e); stirTarget = pointerDown ? 150 : 70;
+  simU.uStirRadial.value = pointerDown ? (pointerBtn===2 ? 1.6 : -1.6) : 0.0;
+  lastInput = performance.now();
+});
+canvas.addEventListener('pointerdown', e=>{ pointerDown=true; pointerBtn=e.button; setRay(e); stirTarget=150; lastInput=performance.now(); });
+window.addEventListener('pointerup', ()=>{ pointerDown=false; });
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+['pointerdown','wheel','keydown'].forEach(ev=>window.addEventListener(ev, ()=>lastInput=performance.now(), {passive:true}));
+window.addEventListener('keydown', e=>{ if(e.code==='Space'){ paused=!paused; e.preventDefault(); } });
+
+/* ─────────────────────────  controls  ───────────────────────── */
+document.getElementById('reseed').addEventListener('click', reseedAll);
+document.getElementById('s_turb').addEventListener('input',  e=>{ ui.turb=(+e.target.value)/100; });
+document.getElementById('s_swirl').addEventListener('input', e=>{ ui.swirl=(+e.target.value)/100; pushVortices(); });
+document.getElementById('s_streak').addEventListener('input',e=>{ ui.streak=(+e.target.value)/100; });
+document.getElementById('s_glow').addEventListener('input',  e=>{ ui.glow=(+e.target.value)/100; });
+document.getElementById('push').addEventListener('click', ()=>{
+  presetIdx = (presetIdx+1)%PRESETS.length; ceilingIdx = presetIdx;
+  buildSim(PRESETS[presetIdx].tex); buildComposer();
+});
+document.getElementById('save').addEventListener('click', ()=>{
+  composer.render();
+  const a=document.createElement('a');
+  a.download='aurelian-'+MOVEMENTS[movIdx].name.toLowerCase()+'.png';
+  a.href=renderer.domElement.toDataURL('image/png'); a.click();
+});
+
+/* ─────────────────────────  caption  ───────────────────────── */
+document.getElementById('caption').innerHTML =
+  `Every filament traces a <b>divergence-free flow</b> — a velocity field built as the curl of a potential, `+
+  `<b>v = ∇×Ψ</b>, so it has <span class="live">zero divergence everywhere</span>: a field with no sources or `+
+  `sinks can fold, shear and braid matter forever without compressing it — the solenoidal condition behind `+
+  `<b>incompressible fluids</b> and <b>magnetic fields</b>. The light is not painted; it is <b>flow made visible</b>, `+
+  `each mote drawn as a streak along its own velocity, so coherent currents read as silk and turbulence as braid. `+
+  `When vortices gather they are <span class="live">Lamb–Oseen swirls</span> — themselves solenoidal, which is why the weave never tears.`;
+
+/* ─────────────────────────  perf governor  ───────────────────────── */
+let emaMs = 16.7, drawFrac = 1.0, ceilingIdx = presetIdx, lastScale = performance.now();
+function governor(dtMs){
+  dtMs = Math.min(dtMs, 100);
+  emaMs = emaMs*0.92 + dtMs*0.08;
+  const fps = 1000/emaMs, now = performance.now();
+  if(fps < 48 && now-lastScale > 700){
+    if(drawFrac > 0.45){ drawFrac = Math.max(0.45, drawFrac-0.12); lastScale=now; }
+    else if(renderer.getPixelRatio() > 1.0){ renderer.setPixelRatio(Math.max(1.0, renderer.getPixelRatio()-0.25)); onResize(); lastScale=now; }
+  } else if(fps > 58 && now-lastScale > 2600){
+    if(renderer.getPixelRatio() < Math.min(window.devicePixelRatio||1,2)){ renderer.setPixelRatio(Math.min(Math.min(window.devicePixelRatio||1,2), renderer.getPixelRatio()+0.25)); onResize(); lastScale=now; }
+    else if(drawFrac < 1.0){ drawFrac = Math.min(1.0, drawFrac+0.08); lastScale=now; }
+  }
+  const n = texSize*texSize;
+  geomRef.setDrawRange(0, 2*Math.floor(n*drawFrac));   // 2 verts per filament
+}
+
+/* ─────────────────────────  resize  ───────────────────────── */
+function onResize(){
+  const s=stageSize();
+  renderer.setSize(s.w,s.h,false);
+  camera.aspect=s.w/s.h; camera.updateProjectionMatrix();
+  if(composer) sizeComposer();
+  if(points) points.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+}
+window.addEventListener('resize', onResize);
+if(window.ResizeObserver){ new ResizeObserver(()=>onResize()).observe(stage); }
+
+/* ─────────────────────────  main loop  ───────────────────────── */
+function animate(){ requestAnimationFrame(animate); const dtMs=clock.getDelta()*1000; frame(Math.min(dtMs/1000,1/45), dtMs); }
+function frame(dt, dtMs){
+  // stir decay (the field heals after you let go)
+  simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25; stirTarget *= 0.86;
+  controls.autoRotate = (performance.now()-lastInput > 6000);
+  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
+
+  if(!paused){
+    advanceDirector(dt);
+    if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.045; }
+    // write the eased composition (+ user multipliers) into the live uniforms
+    simU.uLamAmp.value  = comp.lamAmp;
+    simU.uTurbAmp.value = comp.turbAmp * ui.turb;
+    simU.uVortAmp.value = comp.vortAmp;
+    simU.uTurbScale.value = comp.turbScale;
+    points.material.uniforms.uTrail.value = comp.streak * ui.streak;
+    points.material.uniforms.uWarm.value  = comp.warm;
+    if(bloomPass) bloomPass.strength = comp.glow * ui.glow;
+
+    simU.uTime.value += dt; simU.uDelta.value = dt;
+    gpu.compute();
+  }
+
+  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
+  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+
+  controls.update();
+  composer.render();
+  governor(dtMs);
+
+  if((frame._f=(frame._f||0)+1)%12===0){
+    const fps=Math.round(1000/emaMs), drawn=(texSize*texSize*drawFrac/1e6).toFixed(2);
+    document.getElementById('hud').innerHTML = `<b>${drawn}M</b> filaments · <b>${fps}</b> fps · ${texSize}²`;
+  }
+}
+
+function showBanner(html){ banner.style.display='flex'; banner.innerHTML=html; }
+
+/* ─────────────────────────  boot  ───────────────────────── */
+try{
+  layoutVortices();
+  buildSim(PRESETS[presetIdx].tex);
+  buildComposer();
+  enterMovement(0);
+  onResize();
+  window.__sim = {
+    frame, step:(n=1,dt=1/60)=>{ for(let i=0;i<n;i++) frame(dt, dt*1000); }, reseedAll,
+    setMovement:(i)=>enterMovement(((i%MOVEMENTS.length)+MOVEMENTS.length)%MOVEMENTS.length),
+    fit:(w,h)=>{ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); sizeComposer(); points.material.uniforms.uPixelRatio.value=renderer.getPixelRatio(); },
+    set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; else if(k in comp) comp[k]=v; },
+    get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), movement:MOVEMENTS[movIdx].name, vortices:vortices.length}; },
+  };
+  animate();
+}catch(err){
+  console.error(err);
+  if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the engine.<br><small>'+(err&&err.message||err)+'</small>');
+}
+</script>
+</body>
+</html>

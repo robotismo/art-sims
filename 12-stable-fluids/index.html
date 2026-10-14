@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stable Fluids — Navier–Stokes</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);
+  padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+h1{font-size:30px;margin:9px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:94vw;height:auto;cursor:crosshair}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
+button,select{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover,select:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.val{color:var(--gold2);min-width:42px;text-align:right}
+.caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.hint{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted);letter-spacing:.06em}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 12 · Vol. III · Emergence</div>
+<div class="badge">Opus 4.8 · ultracode</div>
+<h1>Stable Fluids</h1>
+<p class="sub">Ink remembers every breath of the air it drifts through.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <span class="hint">drag to stir ·</span>
+  <button id="clear">⟳ Clear / Reseed</button>
+  <div class="ctl">swirl <input id="swirl" type="range" min="0" max="6" step="0.1" value="2.6"><span class="val" id="swirlv">2.6</span></div>
+  <div class="ctl">fade <input id="fade" type="range" min="0" max="3" step="0.05" value="0.9"><span class="val" id="fadev">0.90</span></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">A faithful run of Jos Stam's <b>Stable Fluids</b> solver: each frame the velocity field is
+diffused, made <b>incompressible</b> by a Gauss–Seidel <b>pressure projection</b>, then carried forward by
+<b>semi-Lagrangian advection</b> — backtracing where each parcel came from and bilinearly sampling it. A dye is
+swept along the same field. <b>Vorticity confinement</b> feeds energy back into the small swirling filaments that
+advection would otherwise smear away — the same eddies you see when ink unfurls into still water.</p>
+<script>
+/* ═══════════ Jos Stam · "Stable Fluids" / "Real-Time Fluid Dynamics for Games" (1999) ═══════════
+   Semi-Lagrangian incompressible solver. One self-contained Canvas-2D piece, no libraries. */
+
+const canvas=document.getElementById('c');
+const DISP=760;                       // fixed internal display size (NOT window-derived)
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);
+  canvas.width=DISP*dpr;canvas.height=DISP*dpr;
+  canvas.style.width=DISP+'px';canvas.style.height=DISP+'px';
+  const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+const ctx=fit();
+
+/* ───────── grid ─────────
+   N interior cells + 1-cell border each side => (N+2)^2 arrays.
+   IX is the SINGLE index macro used for every access, everywhere. */
+const N=150;
+const SZ=(N+2)*(N+2);
+const IX=(i,j)=>i+(N+2)*j;
+
+const u =new Float32Array(SZ), v =new Float32Array(SZ);   // velocity
+const u0=new Float32Array(SZ), v0=new Float32Array(SZ);   // velocity scratch / sources
+const dens =new Float32Array(SZ), dens0=new Float32Array(SZ);  // dye + dye source
+const curlF=new Float32Array(SZ);                          // |curl| field for vorticity confinement
+
+/* ───────── simulation constants ───────── */
+const DT=0.16;            // time step
+const VISC=0.0;          // viscosity (≈0 → smoke; small diffusion still applied for stability)
+const DIFF=0.0;          // dye diffusion off — advection already smears the dye, so a full extra
+                         // Gauss-Seidel solve per frame buys no visible softening; skipping it
+                         // reclaims ~1/3 of the solver cost and keeps a comfortable >30fps at N=150.
+const ITER=24;           // Gauss-Seidel iterations (>=20 required)
+let   SWIRL=2.6;         // vorticity-confinement strength (live slider)
+let   FADE=0.9;          // dye dissipation per frame, slider-scaled
+
+/* ═══════════ boundary conditions ═══════════
+   b=1 → reflect on vertical walls (u), b=2 → reflect on horizontal walls (v),
+   b=0 → continuative (dye/pressure). Corners average their two neighbours. */
+function set_bnd(b,x){
+  for(let i=1;i<=N;i++){
+    x[IX(0,  i)] = b===1 ? -x[IX(1,i)] : x[IX(1,i)];
+    x[IX(N+1,i)] = b===1 ? -x[IX(N,i)] : x[IX(N,i)];
+    x[IX(i,0  )] = b===2 ? -x[IX(i,1)] : x[IX(i,1)];
+    x[IX(i,N+1)] = b===2 ? -x[IX(i,N)] : x[IX(i,N)];
+  }
+  x[IX(0,  0  )]=0.5*(x[IX(1,0  )]+x[IX(0,  1)]);
+  x[IX(0,  N+1)]=0.5*(x[IX(1,N+1)]+x[IX(0,  N)]);
+  x[IX(N+1,0  )]=0.5*(x[IX(N,0  )]+x[IX(N+1,1)]);
+  x[IX(N+1,N+1)]=0.5*(x[IX(N,N+1)]+x[IX(N+1,N)]);
+}
+
+/* ═══════════ linear solver (Gauss-Seidel relaxation) ═══════════ */
+function lin_solve(b,x,x0,a,c){
+  const invc=1/c;
+  for(let k=0;k<ITER;k++){
+    for(let j=1;j<=N;j++){
+      for(let i=1;i<=N;i++){
+        x[IX(i,j)] = (x0[IX(i,j)] + a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))*invc;
+      }
+    }
+    set_bnd(b,x);                     // boundaries enforced after EVERY sweep
+  }
+}
+
+/* diffusion — implicit, unconditionally stable */
+function diffuse(b,x,x0,diff){
+  const a=DT*diff*N*N;
+  lin_solve(b,x,x0,a,1+4*a);
+}
+
+/* ═══════════ semi-Lagrangian advection ═══════════
+   Backtrace each cell along the velocity field, clamp coords to [0.5,N+0.5]
+   (out-of-range reads would produce NaN that blanks the canvas), bilinear sample. */
+function advect(b,d,d0,uu,vv){
+  const dt0=DT*N;
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){
+      let x=i-dt0*uu[IX(i,j)];
+      let y=j-dt0*vv[IX(i,j)];
+      if(x<0.5)x=0.5; else if(x>N+0.5)x=N+0.5;     // CLAMP — no NaN
+      if(y<0.5)y=0.5; else if(y>N+0.5)y=N+0.5;
+      const i0=x|0, i1=i0+1;
+      const j0=y|0, j1=j0+1;
+      const s1=x-i0, s0=1-s1, t1=y-j0, t0=1-t1;
+      d[IX(i,j)] = s0*(t0*d0[IX(i0,j0)]+t1*d0[IX(i0,j1)])
+                 + s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
+    }
+  }
+  set_bnd(b,d);
+}
+
+/* ═══════════ projection — make the field divergence-free (incompressible) ═══════════
+   p reuses u0, div reuses v0 as scratch. */
+function project(uu,vv,p,div){
+  const h=1.0/N;
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){
+      div[IX(i,j)] = -0.5*h*(uu[IX(i+1,j)]-uu[IX(i-1,j)]+vv[IX(i,j+1)]-vv[IX(i,j-1)]);
+      p[IX(i,j)]=0;
+    }
+  }
+  set_bnd(0,div); set_bnd(0,p);
+  lin_solve(0,p,div,1,4);             // solve Poisson pressure eqn (>=20 iters via ITER)
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){
+      uu[IX(i,j)] -= 0.5*(p[IX(i+1,j)]-p[IX(i-1,j)])/h;
+      vv[IX(i,j)] -= 0.5*(p[IX(i,j+1)]-p[IX(i,j-1)])/h;
+    }
+  }
+  set_bnd(1,uu); set_bnd(2,vv);
+}
+
+/* ═══════════ vorticity confinement ═══════════
+   curl w = ∂v/∂x − ∂u/∂y. Force = ε·dt·(N × ω), N = ∇|w| / |∇|w||.
+   Restores the small swirls semi-Lagrangian advection damps out. */
+function vorticity(){
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){
+      const du_dy=(u[IX(i,j+1)]-u[IX(i,j-1)])*0.5;
+      const dv_dx=(v[IX(i+1,j)]-v[IX(i-1,j)])*0.5;
+      curlF[IX(i,j)]=dv_dx-du_dy;
+    }
+  }
+  const eps=SWIRL;
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){
+      const Nx=(Math.abs(curlF[IX(i+1,j)])-Math.abs(curlF[IX(i-1,j)]))*0.5;
+      const Ny=(Math.abs(curlF[IX(i,j+1)])-Math.abs(curlF[IX(i,j-1)]))*0.5;
+      let len=Math.sqrt(Nx*Nx+Ny*Ny)+1e-5;
+      const w=curlF[IX(i,j)];
+      // force = eps * (N_normalized) × w  (2D cross with scalar curl)
+      u[IX(i,j)] += eps*DT*( Ny/len)*w;
+      v[IX(i,j)] += eps*DT*(-Nx/len)*w;
+    }
+  }
+  set_bnd(1,u); set_bnd(2,v);
+}
+
+/* ═══════════ Stam's velocity & density steps ═══════════ */
+function vel_step(){
+  // add forces (u0,v0 hold accumulated impulses this frame)
+  for(let k=0;k<SZ;k++){ u[k]+=DT*u0[k]; v[k]+=DT*v0[k]; }
+  set_bnd(1,u); set_bnd(2,v);
+
+  vorticity();                          // confinement is a FORCE — add it BEFORE projection so the
+                                        // final field stays divergence-free (vorticity() uses curlF
+                                        // only; it does not touch the u0/v0 projection scratch).
+
+  if(VISC>0){
+    u0.set(u); v0.set(v);
+    diffuse(1,u,u0,VISC); diffuse(2,v,v0,VISC);
+    project(u,v,u0,v0);
+  } else {
+    project(u,v,u0,v0);                 // keep field divergence-free before advecting
+  }
+
+  // advect velocity by the projected field (read from the saved copy)
+  u0.set(u); v0.set(v);
+  advect(1,u,u0,u0,v0);
+  advect(2,v,v0,u0,v0);
+  project(u,v,u0,v0);                   // project AGAIN after advection — REQUIRED, else it blows up;
+                                        // this is now the LAST velocity op, so end-of-tick u,v are
+                                        // divergence-free (incompressible).
+}
+
+function dens_step(){
+  for(let k=0;k<SZ;k++) dens[k]+=DT*dens0[k];   // add dye source
+  set_bnd(0,dens);
+  if(DIFF>0){ dens0.set(dens); diffuse(0,dens,dens0,DIFF); }
+  dens0.set(dens);
+  advect(0,dens,dens0,u,v);              // carry dye along the (now divergence-free) field
+}
+
+/* ═══════════ forcing: orbiting emitter (aliveness) + mouse stir ═══════════ */
+let frame=0;
+function clearForces(){ u0.fill(0); v0.fill(0); dens0.fill(0); }
+
+function autoEmit(){
+  // a source that slowly orbits the centre, emitting dye + a curling velocity impulse
+  const t=frame*0.012;
+  const cx=(N>>1)+Math.cos(t)*N*0.26;
+  const cy=(N>>1)+Math.sin(t*1.3)*N*0.26;
+  const i=Math.max(2,Math.min(N-1,cx|0));
+  const j=Math.max(2,Math.min(N-1,cy|0));
+  // tangential (curling) velocity along the orbit direction
+  const tx=-Math.sin(t), ty=Math.cos(t*1.3)*1.3;
+  const tl=Math.hypot(tx,ty)+1e-6;
+  for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){
+    const ii=i+di, jj=j+dj;
+    if(ii<1||ii>N||jj<1||jj>N)continue;
+    const fall=Math.exp(-(di*di+dj*dj)*0.5);
+    dens0[IX(ii,jj)] += 58*fall;
+    u0[IX(ii,jj)] += (tx/tl)*46*fall;
+    v0[IX(ii,jj)] += (ty/tl)*46*fall;
+  }
+}
+
+/* pointer in grid coords */
+let pdown=false, pgx=0, pgy=0, ppgx=0, ppgy=0, hasPrev=false;
+function stir(){
+  if(!pdown)return;
+  const i=Math.max(1,Math.min(N,pgx|0));
+  const j=Math.max(1,Math.min(N,pgy|0));
+  let dx=pgx-ppgx, dy=pgy-ppgy;          // pointer delta → injected velocity
+  if(!isFinite(dx)) dx=0;
+  if(!isFinite(dy)) dy=0;
+  for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){
+    const ii=i+di, jj=j+dj;
+    if(ii<1||ii>N||jj<1||jj>N)continue;
+    const fall=Math.exp(-(di*di+dj*dj)*0.45);
+    dens0[IX(ii,jj)] += 120*fall;
+    u0[IX(ii,jj)] += dx*5.5*fall;
+    v0[IX(ii,jj)] += dy*5.5*fall;
+  }
+  ppgx=pgx; ppgy=pgy;
+}
+
+/* ═══════════ render ═══════════
+   dark → emerald → gold → pale-gold ramp into an N×N ImageData (interior cells),
+   blit to a small offscreen canvas then scale up; faint additive second pass for glow. */
+const off=document.createElement('canvas'); off.width=N; off.height=N;
+const offc=off.getContext('2d');
+const img=offc.createImageData(N,N);
+const data=img.data;
+
+// precomputed colour ramp (256 stops): black → emerald → gold → pale gold
+const RAMP=new Uint8Array(256*3);
+(function buildRamp(){
+  // dark → deep-emerald (dim base) → gold (dominant body) → pale-gold (bright cores)
+  const stops=[[0, 5,9,7],[0.16, 18,58,44],[0.36, 47,158,111],[0.60, 232,196,94],[1.0, 246,230,168]];
+  for(let s=0;s<256;s++){
+    const t=s/255; let a=stops[0],b=stops[stops.length-1];
+    for(let k=0;k<stops.length-1;k++){ if(t>=stops[k][0]&&t<=stops[k+1][0]){a=stops[k];b=stops[k+1];break;} }
+    const f=(t-a[0])/((b[0]-a[0])||1);
+    RAMP[s*3  ]=a[1]+(b[1]-a[1])*f;
+    RAMP[s*3+1]=a[2]+(b[2]-a[2])*f;
+    RAMP[s*3+2]=a[3]+(b[3]-a[3])*f;
+  }
+})();
+
+function render(){
+  let p=0;
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){
+      let d=dens[IX(i,j)];
+      if(!(d>=0)) d=0;                  // NaN/neg guard: a single NaN would blank the canvas
+      // tone-map: spread density across the ramp so the body reads GOLD, cores pale-gold.
+      // gentler curve + mild gamma keeps the common mid-densities in the gold band.
+      let t=1-Math.exp(-d*0.6);
+      t=Math.pow(t,0.92);
+      if(t<0)t=0; else if(t>1)t=1;
+      const idx=(t*255)|0;
+      data[p]  =RAMP[idx*3];
+      data[p+1]=RAMP[idx*3+1];
+      data[p+2]=RAMP[idx*3+2];
+      data[p+3]=255;
+      p+=4;
+    }
+  }
+  offc.putImageData(img,0,0);
+
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#05080699'; ctx.fillRect(0,0,DISP,DISP);
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(off,0,0,DISP,DISP);
+  // faint additive glow pass — only the bright cores bloom, dark base stays dark.
+  // a slight blur on the additive layer spreads the glow without washing the field.
+  ctx.globalCompositeOperation='lighter';
+  ctx.globalAlpha=0.18;
+  ctx.filter='blur(2px)';
+  ctx.drawImage(off,0,0,DISP,DISP);
+  ctx.filter='none';
+  ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
+}
+
+/* ═══════════ one shared tick (rAF loop AND __sim.step call this) ═══════════ */
+function tick(){
+  clearForces();
+  autoEmit();
+  stir();
+  vel_step();
+  dens_step();
+  // gentle per-frame dissipation (fade slider scales it) — keeps dark negative
+  // space so the field reaches a steady state instead of filling solid.
+  const keep=1-0.0075*FADE;
+  for(let k=0;k<SZ;k++) dens[k]*=keep;
+  frame++;
+  render();
+}
+
+let raf;
+function loop(){ tick(); raf=requestAnimationFrame(loop); }
+function start(){ cancelAnimationFrame(raf); loop(); }
+
+function clearAll(){
+  u.fill(0); v.fill(0); u0.fill(0); v0.fill(0);
+  dens.fill(0); dens0.fill(0); curlF.fill(0);
+  frame=0;
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#070b09'; ctx.fillRect(0,0,DISP,DISP);
+}
+
+/* ───────── controls ───────── */
+const swirlEl=document.getElementById('swirl'), swirlv=document.getElementById('swirlv');
+const fadeEl =document.getElementById('fade'),  fadev =document.getElementById('fadev');
+swirlEl.oninput=()=>{ SWIRL=+swirlEl.value; swirlv.textContent=SWIRL.toFixed(1); };
+fadeEl.oninput =()=>{ FADE =+fadeEl.value;  fadev.textContent =FADE.toFixed(2); };
+document.getElementById('clear').onclick=()=>{ clearAll(); };
+document.getElementById('save').onclick=()=>{ const a=document.createElement('a');
+  a.download='stable-fluids.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
+
+/* pointer → grid coords (DISP px → N cells).
+   Guard against a zero/invalid bounding rect (headless preview reports width 0,
+   which would divide to Infinity/NaN and poison the whole field). */
+function toGrid(e){ const r=canvas.getBoundingClientRect();
+  const w=r.width||DISP, h=r.height||DISP;            // fall back to internal size
+  let gx=(e.clientX-r.left)/w*N, gy=(e.clientY-r.top)/h*N;
+  if(!isFinite(gx)) gx=N*0.5;
+  if(!isFinite(gy)) gy=N*0.5;
+  pgx=gx<0?0:gx>N?N:gx;
+  pgy=gy<0?0:gy>N?N:gy; }
+canvas.addEventListener('pointerdown',e=>{ pdown=true; toGrid(e); ppgx=pgx; ppgy=pgy; canvas.setPointerCapture&&canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove',e=>{ if(!pdown){toGrid(e);return;} toGrid(e); });
+canvas.addEventListener('pointerup',  ()=>{ pdown=false; });
+canvas.addEventListener('pointerleave',()=>{ pdown=false; });
+
+/* ───────── headless hook: preview may pause rAF & report innerWidth 0 ───────── */
+window.__sim={
+  step(n){ for(let i=0;i<(n||1);i++) tick(); },
+  info(){
+    let mass=0, mx=0, nan=0;
+    for(let k=0;k<SZ;k++){ const d=dens[k]; if(d!==d){nan++;} else {mass+=d; if(d>mx)mx=d;} }
+    return { N:N, size:SZ, iter:ITER, frame:frame, swirl:SWIRL, fade:FADE,
+             dyeMass:Math.round(mass), dyeMax:+mx.toFixed(2), nan:nan }; }
+};
+
+clearAll();
+start();
+</script>
+</body>
+</html>

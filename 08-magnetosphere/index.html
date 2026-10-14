@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Magnetosphere — Charged Dust in a Magnetic Dipole</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:26px 18px 64px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600;letter-spacing:.01em}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic;text-align:center;max-width:680px}
+.stage{position:relative;border-radius:14px;overflow:hidden;width:clamp(360px,94vw,1180px);height:clamp(380px,72vh,720px);
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 90px -34px #000;background:#04070a}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;top:12px;left:14px;font-family:ui-monospace,monospace;font-size:11px;
+  color:var(--muted);letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 3px #000}
+.hud b{color:var(--gold2);font-weight:500}
+.modechip{position:absolute;top:12px;right:14px;font-family:ui-monospace,monospace;font-size:11px;
+  letter-spacing:.18em;color:var(--gold);pointer-events:none;text-shadow:0 1px 3px #000}
+.hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:ui-monospace,monospace;
+  font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
+.banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+  padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04070ae6}
+.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:center;
+  margin:18px 0 10px;max-width:1080px}
+.seg{display:inline-flex;border:1px solid rgba(232,196,94,.28);border-radius:9px;overflow:hidden}
+.seg button{border:none;border-radius:0;border-right:1px solid rgba(232,196,94,.18)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:linear-gradient(var(--green),#1f6f4d);color:#fff;box-shadow:inset 0 0 14px -4px var(--gold)}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:8px 14px;border-radius:9px;font:inherit;font-size:12.5px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 16px -4px var(--gold)}
+button:disabled{opacity:.34;cursor:default;box-shadow:none;border-color:rgba(232,196,94,.16)}
+.ctl{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:96px}
+.caption{max-width:720px;text-align:center;color:var(--muted);font-size:13px;line-height:1.62;margin-top:6px}
+.caption b{color:var(--ink);font-weight:600}
+.caption .live{color:var(--gold2)}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;z-index:5}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 08 · Vol. II · Cosmos</div>
+<div class="badge">Opus 4.8</div>
+<h1>Magnetosphere</h1>
+<p class="sub">Charged dust spirals down the field lines and burns at the poles.</p>
+
+<div class="stage" id="stage">
+  <canvas id="c"></canvas>
+  <div class="hud" id="hud">—</div>
+  <div class="modechip" id="modechip">DIPOLE</div>
+  <div class="hint" id="hint">drag to orbit · scroll to dive · move the cursor to tilt the field & drive the wind</div>
+  <div class="banner" id="banner"></div>
+</div>
+
+<div class="controls">
+  <button id="reseed">⟳ Reseed</button>
+  <div class="ctl">field <input id="s_field" type="range" min="20" max="220" value="90"></div>
+  <div class="ctl">wind <input id="s_wind" type="range" min="0" max="100" value="34"></div>
+  <div class="ctl">drift <input id="s_drift" type="range" min="20" max="120" value="60"></div>
+  <div class="ctl">glow <input id="s_glow" type="range" min="20" max="170" value="78"></div>
+  <button id="trails" class="on">trails: on</button>
+  <button id="push">▲ Push it · 1.0M</button>
+  <button id="save">⤓ Save PNG</button>
+</div>
+
+<p class="caption" id="caption"></p>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+import { EffectComposer }   from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }       from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }  from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { AfterimagePass }   from 'three/addons/postprocessing/AfterimagePass.js';
+import { OutputPass }       from 'three/addons/postprocessing/OutputPass.js';
+import { OrbitControls }    from 'three/addons/controls/OrbitControls.js';
+
+/* ─────────────────────────  constants / state  ───────────────────────── */
+const BOUND = 110.0, KILL = 200.0;
+const PRESETS = [
+  { tex:768,  label:'0.6M' },
+  { tex:1024, label:'1.0M' },
+  { tex:1448, label:'2.1M' },
+  { tex:2048, label:'4.2M' },
+];
+let presetIdx = 1;                 // default MED = 1024² on Apple Silicon
+let modeExposure = 0.05;           // base exposure for the draw material
+const ui = {
+  field: 90.0,      // uB0 (×1)
+  wind:  0.34,      // uWind
+  drift: 0.60,      // dt time-scale knob
+  glow:  0.78,      // bloom strength
+  trails: true,
+};
+
+/* ─────────────────────────  shared GLSL chunks  ───────────────────────── */
+const HASH = `
+float hash11(float p){ p=fract(p*0.1031); p*=p+33.33; p*=p+p; return fract(p); }
+vec3 hash33(vec3 p3){
+  p3=fract(p3*vec3(0.1031,0.1030,0.0973));
+  p3+=dot(p3,p3.yxz+33.33);
+  return fract((p3.xxy+p3.yxx)*p3.zyx);
+}`;
+
+// Ashima / Stefan Gustavson 3D simplex noise (public domain)
+const SNOISE = `
+vec4 permute(vec4 x){ return mod(((x*34.0)+1.0)*x,289.0); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159-0.85373472095314*r; }
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+1.0*C.xxx; vec3 x2=x0-i2+2.0*C.xxx; vec3 x3=x0-1.0+3.0*C.xxx;
+  i=mod(i,289.0);
+  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=1.0/7.0; vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z);
+  vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}
+vec3 snoiseVec3(vec3 x){
+  return vec3(snoise(x),
+              snoise(x+vec3(123.4,517.1,931.7)),
+              snoise(x+vec3(-415.3,251.9,-741.2)));
+}
+vec3 curlNoise(vec3 p){
+  const float e=0.18;
+  vec3 dx=vec3(e,0.0,0.0), dy=vec3(0.0,e,0.0), dz=vec3(0.0,0.0,e);
+  vec3 px0=snoiseVec3(p-dx), px1=snoiseVec3(p+dx);
+  vec3 py0=snoiseVec3(p-dy), py1=snoiseVec3(p+dy);
+  vec3 pz0=snoiseVec3(p-dz), pz1=snoiseVec3(p+dz);
+  float x=(py1.z-py0.z)-(pz1.y-pz0.y);
+  float y=(pz1.x-pz0.x)-(px1.z-px0.z);
+  float z=(px1.y-px0.y)-(py1.x-py0.x);
+  return vec3(x,y,z)/(2.0*e);
+}`;
+
+// seed positions (shared by both compute shaders so reseed is consistent) —
+// spherical shell, radius ~bound*0.5..0.9, around the dipole.
+const SEED = `
+uniform float uBound;
+vec3 seedPosition(vec2 ref, float t){
+  vec3 h = hash33(vec3(ref*vec2(443.7,191.3), t*0.017));
+  // even point on a sphere
+  float u  = h.x*2.0-1.0;
+  float ph = h.y*6.28318530718;
+  float s  = sqrt(max(0.0,1.0-u*u));
+  vec3 dir = vec3(s*cos(ph), u, s*sin(ph));
+  float rr = uBound*(0.50 + 0.40*h.z);
+  return dir*rr;
+}`;
+
+/* ─────────────────────────  velocity compute shader  ───────────────────────── */
+const VELOCITY_FRAG = `
+uniform float uTime, uDelta;
+uniform float uB0, uGrav, uWind, uSpeedClamp, uRmin, uFlowSpeed;
+uniform vec3  uDipole, uWindDir;
+uniform float uKillRadius, uShimmer;
+${HASH}
+${SNOISE}
+${SEED}
+
+vec3 clampLen(vec3 v, float m){ float l=length(v); return l>m ? v*(m/l) : v; }
+
+// magnetic dipole field at p:  B = (B0/r^3) * (3 (m·rh) rh - m)
+vec3 dipoleB(vec3 p){
+  float r = max(length(p), 1.0);
+  vec3  rh = p/r;
+  vec3  m  = normalize(uDipole);
+  float inv = uB0/(r*r*r);
+  return inv*(3.0*dot(m,rh)*rh - m);
+}
+
+void main(){
+  vec2 uv = gl_FragCoord.xy/resolution.xy;
+  vec4 P  = texture2D(texturePosition, uv);
+  vec3 pos = P.xyz; float life = P.w;
+  vec4 V  = texture2D(textureVelocity, uv);
+  vec3 vel = V.xyz; float age = V.w;
+
+  // per-particle charge sign -> two populations spiral oppositely
+  float q = (hash11(uv.x*73.31 + uv.y*191.7) < 0.5) ? 1.0 : -1.0;
+
+  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+
+  if(reseed){
+    // seed with a partly-tangential velocity so particles have perpendicular
+    // velocity to gyrate around the field lines from frame one.
+    vec3 sp  = seedPosition(uv, uTime);
+    float r  = max(length(sp),1.0);
+    vec3 rh  = sp/r;
+    vec3 t1  = normalize(cross(rh, normalize(uDipole)) + vec3(1e-4));
+    vec3 t2  = normalize(cross(rh, t1));
+    vec3 jit = hash33(vec3(uv, uTime*0.7))-0.5;
+    vec3 nv  = (t1*(0.85+0.3*jit.x) + t2*(0.18*jit.y) - rh*(0.05+0.12*jit.z)) * uSpeedClamp * 0.34;
+    gl_FragColor = vec4(nv, 0.0);
+    return;
+  }
+
+  // Advect ALONG the dipole field lines: velocity follows B, the charge sign sends the
+  // two populations opposite ways, so the dust traces the looping field from pole to pole
+  // and piles up where the lines converge at the poles — the aurora.
+  vec3 B = dipoleB(pos);
+  vec3 bdir = normalize(B + vec3(1e-5));
+  vec3 target = bdir * q * uFlowSpeed;
+
+  vec3 a = curlNoise(pos*0.025 + uTime*0.15) * uShimmer;   // subtle helical braid around each line
+  a += uWind * uWindDir;                                    // solar-wind sway
+
+  vec3 nv = mix(vel, target, 0.13);     // hug the field line, with momentum
+  nv += a*uDelta;
+  nv = clampLen(nv, uSpeedClamp);
+
+  age += uDelta;
+  gl_FragColor = vec4(nv, age);
+}`;
+
+/* ─────────────────────────  position compute shader  ───────────────────────── */
+const POSITION_FRAG = `
+uniform float uTime, uDelta, uKillRadius, uLifeRate;
+${HASH}
+${SEED}
+void main(){
+  vec2 uv = gl_FragCoord.xy/resolution.xy;
+  vec4 P = texture2D(texturePosition, uv);
+  vec3 pos = P.xyz; float life = P.w;
+  vec3 vel = texture2D(textureVelocity, uv).xyz;
+
+  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+  if(reseed){
+    pos  = seedPosition(uv, uTime);
+    life = 0.55 + 0.45*hash11(uv.x*51.3+uv.y*19.1+uTime*0.013);
+  } else {
+    pos += vel*uDelta;
+    float rate = uLifeRate*(0.5+hash11(uv.x*131.7+uv.y*97.3));
+    life -= rate*uDelta;
+  }
+  gl_FragColor = vec4(pos, life);
+}`;
+
+/* ─────────────────────────  render shaders (THREE.Points)  ───────────────────────── */
+const POINTS_VERT = `
+uniform sampler2D texturePosition;
+uniform sampler2D textureVelocity;
+uniform float uPointSize, uPixelRatio, uSpeedScale;
+attribute vec2 reference;
+varying float vSpeed; varying float vLife; varying float vDepth; varying float vRad;
+void main(){
+  vec4 P = texture2D(texturePosition, reference);
+  vec3 pos = P.xyz; vLife = P.w;
+  vec3 vel = texture2D(textureVelocity, reference).xyz;
+  vSpeed = clamp(length(vel)/uSpeedScale, 0.0, 1.0);
+  vRad   = length(pos);
+  vec4 mv = modelViewMatrix * vec4(pos,1.0);
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+  float size = uPointSize*uPixelRatio*(360.0/max(-mv.z,1.0));
+  size *= 0.45 + 0.55*vSpeed;
+  size *= smoothstep(0.0,0.12,vLife);
+  gl_PointSize = clamp(size, 0.0, 14.0);
+}`;
+
+const POINTS_FRAG = `
+precision highp float;
+uniform float uExposure, uFogDensity, uWarm, uInner;
+varying float vSpeed; varying float vLife; varying float vDepth; varying float vRad;
+vec3 ramp(float t){
+  // emerald belt -> teal -> gold funnels -> pale -> hot white poles (authored in linear space)
+  vec3 c0=vec3(0.04,0.40,0.24);   // deep emerald  #2f9e6f-ish
+  vec3 c1=vec3(0.07,0.58,0.46);   // teal
+  vec3 c2=vec3(0.92,0.70,0.22);   // warm gold     #e8c45e
+  vec3 c3=vec3(1.05,0.95,0.64);   // pale gold     #f6e6a8
+  vec3 c4=vec3(1.40,1.30,1.12);   // hot white (HDR)
+  vec3 c;
+  if(t<0.46)      c=mix(c0,c1,smoothstep(0.0,0.46,t));
+  else if(t<0.72) c=mix(c1,c2,smoothstep(0.46,0.72,t));
+  else if(t<0.90) c=mix(c2,c3,smoothstep(0.72,0.90,t));
+  else            c=mix(c3,c4,smoothstep(0.90,1.0,t));
+  return c;
+}
+void main(){
+  vec2 d = gl_PointCoord-0.5;
+  float r2 = dot(d,d);
+  if(r2>0.25) discard;
+  float a = exp(-r2*5.5);                 // soft gaussian sprite
+  // speed -> heat; closer to the dipole (small radius = polar funnel) burns hotter
+  float prox = clamp((uInner - vRad)/uInner, 0.0, 1.0);
+  float t = clamp(vSpeed + uWarm*0.20 + prox*0.45, 0.0, 1.0);
+  vec3 col = ramp(t);
+  float fade = smoothstep(0.0,0.18,vLife);
+  float fog  = exp(-vDepth*uFogDensity);
+  vec3 c = col * a * fade * fog * uExposure;
+  gl_FragColor = vec4(c, a*fade*fog);
+}`;
+
+/* ─────────────────────────  renderer / scene  ───────────────────────── */
+const canvas = document.getElementById('c');
+const stage  = document.getElementById('stage');
+const banner = document.getElementById('banner');
+
+let renderer, scene, camera, controls, composer, bloomPass, afterPass, gpu;
+let posVar, velVar, simU, points, geomRef = null;
+let texSize = PRESETS[presetIdx].tex;
+const clock = new THREE.Clock();
+
+function stageSize(){ return { w: stage.clientWidth||1100, h: stage.clientHeight||640 }; }
+renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, preserveDrawingBuffer:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+{ const s=stageSize(); renderer.setSize(s.w, s.h, false); }
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+scene = new THREE.Scene();
+scene.background = makeBackgroundTexture();
+
+{ const s=stageSize(); camera = new THREE.PerspectiveCamera(56, s.w/s.h, 1, 5000); }
+camera.position.set(0, 70, 300);
+
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 40;
+controls.maxDistance = 1400;
+controls.autoRotateSpeed = 0.45;
+
+function makeBackgroundTexture(){
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+  const g = cv.getContext('2d');
+  const rad = g.createRadialGradient(256,210,30, 256,256,360);
+  rad.addColorStop(0,'#0c1512'); rad.addColorStop(0.55,'#070d0b'); rad.addColorStop(1,'#04070a');
+  g.fillStyle = rad; g.fillRect(0,0,512,512);
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+  return tx;
+}
+
+/* ─────────────────────────  GPGPU init / rebuild  ───────────────────────── */
+function makeSimUniforms(){
+  return {
+    uTime:{value:0}, uDelta:{value:0},
+    uB0:{value:ui.field}, uGrav:{value:2400.0}, uWind:{value:ui.wind}, uSpeedClamp:{value:60.0},
+    uRmin:{value:16.0}, uShimmer:{value:0.45}, uFlowSpeed:{value:30.0},
+    uDipole:{value:new THREE.Vector3(0.18,1.0,0.0)},
+    uWindDir:{value:new THREE.Vector3(1,0,0)},
+    uBound:{value:BOUND}, uKillRadius:{value:KILL}, uLifeRate:{value:0.055},
+  };
+}
+
+function buildSim(size){
+  texSize = size;
+  if(gpu){ gpu.dispose && gpu.dispose(); }
+  gpu = new GPUComputationRenderer(size, size, renderer);
+  if(renderer.capabilities.isWebGL2 === false){ /* r184 is WebGL2-only */ }
+
+  const dtPos = gpu.createTexture();
+  const dtVel = gpu.createTexture();
+  seedTextures(dtPos, dtVel, size);
+
+  velVar = gpu.addVariable('textureVelocity', VELOCITY_FRAG, dtVel);
+  posVar = gpu.addVariable('texturePosition', POSITION_FRAG, dtPos);
+  gpu.setVariableDependencies(velVar, [posVar, velVar]);
+  gpu.setVariableDependencies(posVar, [posVar, velVar]);
+
+  simU = makeSimUniforms();
+  // share the SAME uniform objects across both materials -> one update point
+  for(const k in simU){ velVar.material.uniforms[k] = simU[k]; }
+  for(const k of ['uTime','uDelta','uKillRadius','uLifeRate','uBound']){
+    posVar.material.uniforms[k] = simU[k];
+  }
+
+  let err = gpu.init();
+  if(err !== null){
+    // float-render unsupported -> try half float
+    gpu.setDataType && gpu.setDataType(THREE.HalfFloatType);
+    err = gpu.init();
+    if(err !== null){ showBanner('This GPU can’t render to float textures, so the particle engine can’t run.<br>'+err); throw new Error(err); }
+  }
+  buildPoints(size);
+  applyDefaults(true);
+  document.getElementById('push').textContent = '▲ Push it · '+PRESETS[presetIdx].label;
+}
+
+function seedTextures(dtPos, dtVel, size){
+  const p = dtPos.image.data, v = dtVel.image.data;
+  for(let i=0;i<size*size;i++){
+    const k=i*4;
+    // initial spherical shell; the compute shader recycles into the shell on kill/life
+    const u=Math.random()*2-1, th=Math.random()*Math.PI*2, rr=BOUND*(0.5+0.4*Math.random());
+    const s=Math.sqrt(1-u*u);
+    p[k  ]=Math.cos(th)*s*rr; p[k+1]=u*rr; p[k+2]=Math.sin(th)*s*rr;
+    p[k+3]=Math.random();                       // life
+    v[k]=v[k+1]=v[k+2]=0; v[k+3]=Math.random()*5; // velocity + age
+  }
+}
+
+function buildPoints(size){
+  const n = size*size;
+  if(points){ scene.remove(points); points.geometry.dispose(); points.material.dispose(); }
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(n*3);     // placeholder (real pos comes from texture)
+  const refs = new Float32Array(n*2);
+  for(let i=0;i<n;i++){
+    refs[i*2]   = (i%size)/size;
+    refs[i*2+1] = Math.floor(i/size)/size;
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  geom.setAttribute('reference', new THREE.BufferAttribute(refs,2));
+  geomRef = geom;
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{
+      texturePosition:{value:null}, textureVelocity:{value:null},
+      uPointSize:{value:1.45}, uPixelRatio:{value:renderer.getPixelRatio()},
+      uSpeedScale:{value:34.0}, uExposure:{value:0.075}, uFogDensity:{value:0.0017},
+      uWarm:{value:0.0}, uInner:{value:42.0},
+    },
+    vertexShader: POINTS_VERT, fragmentShader: POINTS_FRAG,
+    transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
+  });
+  points = new THREE.Points(geom, mat);
+  points.frustumCulled = false;
+  scene.add(points);
+}
+
+/* ─────────────────────────  post-processing  ───────────────────────── */
+function buildComposer(){
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w, s.h), ui.glow, 0.62, 0.52); }
+  composer.addPass(bloomPass);
+  afterPass = new AfterimagePass(0.88);
+  afterPass.enabled = ui.trails;
+  composer.addPass(afterPass);
+  composer.addPass(new OutputPass());
+  sizeComposer();
+}
+function sizeComposer(){
+  const s=stageSize();
+  composer.setSize(s.w,s.h);
+  const br = (texSize>=1448)?0.5:1.0;             // halve bloom res at high counts
+  bloomPass.setSize(s.w*br, s.h*br);
+}
+
+/* ─────────────────────────  defaults  ───────────────────────── */
+function applyDefaults(instant){
+  simU.uShimmer.value = 0.45;
+  simU.uLifeRate.value = 0.055;
+  points.material.uniforms.uSpeedScale.value = 46;
+  points.material.uniforms.uWarm.value = 0.0;
+  points.material.uniforms.uPointSize.value = 1.3;
+  modeExposure = 0.058;
+  afterPass && (afterPass.enabled = ui.trails);
+  document.getElementById('modechip').textContent = 'DIPOLE';
+  updateCaption();
+}
+
+/* ─────────────────────────  pointer interaction  ───────────────────────── */
+const ndc = new THREE.Vector2();
+let lastInput = performance.now(), pointerDown = false;
+let dipoleTarget = new THREE.Vector3(0.18,1.0,0.0);
+let windTarget   = new THREE.Vector3(1,0,0);
+let windBoost = 0;                 // extra wind while the pointer is active
+
+function setFieldFromEvent(e){
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  ndc.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  const o = camera.getWorldPosition(new THREE.Vector3());
+  const far = new THREE.Vector3(ndc.x, ndc.y, 0.5).unproject(camera);
+  const dir = far.sub(o).normalize();
+  // pointer tilts the dipole axis toward the unprojected cursor direction (smoothed)
+  dipoleTarget.copy(dir).multiplyScalar(0.85);
+  dipoleTarget.y += 0.6;            // keep a strong vertical bias so poles stay readable
+  if(dipoleTarget.lengthSq() < 1e-4) dipoleTarget.set(0.18,1.0,0.0);
+  dipoleTarget.normalize();
+  // ... and drives the solar wind toward the cursor
+  windTarget.copy(dir);
+}
+canvas.addEventListener('pointermove', e=>{
+  setFieldFromEvent(e);
+  windBoost = pointerDown ? 0.9 : 0.4;
+  lastInput = performance.now();
+});
+canvas.addEventListener('pointerdown', e=>{ pointerDown=true; setFieldFromEvent(e); windBoost=0.9; lastInput=performance.now(); });
+window.addEventListener('pointerup', ()=>{ pointerDown=false; });
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+['pointerdown','wheel','keydown'].forEach(ev=>window.addEventListener(ev, ()=>lastInput=performance.now(), {passive:true}));
+
+let paused = false;
+window.addEventListener('keydown', e=>{ if(e.code==='Space'){ paused=!paused; e.preventDefault(); } });
+
+/* ─────────────────────────  controls / UI  ───────────────────────── */
+document.getElementById('reseed').addEventListener('click', reseedAll);
+document.getElementById('s_field').addEventListener('input', e=>{ ui.field=(+e.target.value); simU.uB0.value=ui.field; });
+document.getElementById('s_wind').addEventListener('input',  e=>{ ui.wind=(+e.target.value)/100; });
+document.getElementById('s_drift').addEventListener('input', e=>{ ui.drift=(+e.target.value)/100; });
+document.getElementById('s_glow').addEventListener('input',  e=>{ ui.glow=(+e.target.value)/100; bloomPass.strength=ui.glow; });
+document.getElementById('trails').addEventListener('click', e=>{
+  ui.trails=!ui.trails; e.target.classList.toggle('on',ui.trails); e.target.textContent='trails: '+(ui.trails?'on':'off');
+  afterPass.enabled = ui.trails;
+});
+document.getElementById('push').addEventListener('click', ()=>{
+  presetIdx = (presetIdx+1)%PRESETS.length;
+  ceilingIdx = presetIdx;
+  rebuildAt(PRESETS[presetIdx].tex);
+});
+document.getElementById('save').addEventListener('click', ()=>{
+  composer.render();
+  const a=document.createElement('a');
+  a.download='magnetosphere.png';
+  a.href=renderer.domElement.toDataURL('image/png'); a.click();
+});
+
+function reseedAll(){
+  // jump uTime so the seed hash decorrelates, then force everyone to reseed for a couple of frames
+  simU.uTime.value += 137.5;
+  forceReseedPulse = 2;             // frames where lifeRate is huge -> all particles expire & respawn
+}
+let forceReseedPulse = 0;
+
+function rebuildAt(size){
+  buildSim(size);
+  buildComposer();
+  applyDefaults(true);
+}
+
+/* ─────────────────────────  caption  ───────────────────────── */
+function updateCaption(){
+  document.getElementById('caption').innerHTML =
+    `Every point is a charged grain of dust feeling the <b>Lorentz force</b>, <b>F = q v × B</b>, in the field of a tilted ` +
+    `<b>magnetic dipole</b>. Because the force is perpendicular to motion, each grain <span class="live">gyrates</span> tightly ` +
+    `around a field line and drifts along it; where the field crowds toward the poles it strengthens and the ` +
+    `<b>magnetic-mirror effect</b> reflects the grains back, funnelling two oppositely-charged populations into bright ` +
+    `<span class="live">polar ovals</span> while trapping the rest in an equatorial belt — exactly how Earth’s magnetosphere ` +
+    `paints the <b>aurora</b> and holds the <b>Van Allen belts</b>.`;
+}
+
+/* ─────────────────────────  perf governor  ───────────────────────── */
+let emaMs = 16.7, drawFrac = 1.0, ceilingIdx = presetIdx, lastScale = performance.now();
+function governor(dtMs){
+  dtMs = Math.min(dtMs, 100);          // ignore tab-switch / stall spikes, not a perf signal
+  emaMs = emaMs*0.92 + dtMs*0.08;
+  const fps = 1000/emaMs;
+  const now = performance.now();
+  if(fps < 48 && now-lastScale > 700){
+    if(drawFrac > 0.45){ drawFrac = Math.max(0.45, drawFrac-0.12); lastScale=now; }
+    else if(renderer.getPixelRatio() > 1.0){ renderer.setPixelRatio(Math.max(1.0, renderer.getPixelRatio()-0.25)); onResize(); lastScale=now; }
+  } else if(fps > 58 && now-lastScale > 2600){
+    if(renderer.getPixelRatio() < Math.min(window.devicePixelRatio||1,2)){ renderer.setPixelRatio(Math.min(Math.min(window.devicePixelRatio||1,2), renderer.getPixelRatio()+0.25)); onResize(); lastScale=now; }
+    else if(drawFrac < 1.0){ drawFrac = Math.min(1.0, drawFrac+0.08); lastScale=now; }
+  }
+  const n = texSize*texSize;
+  geomRef.setDrawRange(0, Math.floor(n*drawFrac));
+}
+
+/* ─────────────────────────  resize  ───────────────────────── */
+function onResize(){
+  const s=stageSize();
+  renderer.setSize(s.w,s.h,false);
+  camera.aspect=s.w/s.h; camera.updateProjectionMatrix();
+  if(composer) sizeComposer();
+  if(points) points.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+}
+window.addEventListener('resize', onResize);
+if(window.ResizeObserver){ new ResizeObserver(()=>onResize()).observe(stage); }
+
+/* ─────────────────────────  main loop  ───────────────────────── */
+function animate(){
+  requestAnimationFrame(animate);
+  const dtMs = clock.getDelta()*1000;
+  const dt = Math.min(dtMs/1000, 1/45);
+  frame(dt, dtMs);
+}
+function frame(dt, dtMs){
+  // smooth the dipole tilt + wind direction toward their pointer-driven targets
+  simU.uDipole.value.lerp(dipoleTarget, 0.05);
+  simU.uWindDir.value.lerp(windTarget, 0.05).normalize();
+  // effective wind = slider + pointer boost (decays back to slider when idle)
+  simU.uWind.value = ui.wind*(1.0 + windBoost*2.2);
+  windBoost *= 0.94;
+
+  // idle auto-orbit after 6s
+  controls.autoRotate = (performance.now()-lastInput > 6000);
+  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
+
+  if(!paused){
+    // reseed pulse (Reseed button)
+    if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) applyDefaults(true); }
+
+    // a small clamped dt — v×B is stiff, so keep the step short for stability
+    const sdt = Math.min(dt*(0.4+1.2*ui.drift), 1/40);
+    simU.uTime.value += sdt;
+    simU.uDelta.value = sdt;
+    gpu.compute();
+  }
+
+  // feed current sim textures to the draw material
+  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
+  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+  points.material.uniforms.uExposure.value = modeExposure;
+  if(bloomPass) bloomPass.strength = ui.glow;
+
+  controls.update();
+  composer.render();
+  governor(dtMs);
+
+  // HUD
+  if((animate._f=(animate._f||0)+1)%12===0){
+    const fps = Math.round(1000/emaMs);
+    const drawn = (texSize*texSize*drawFrac/1e6).toFixed(2);
+    document.getElementById('hud').innerHTML = `<b>${drawn}M</b> pts · <b>${fps}</b> fps · ${texSize}²`;
+  }
+}
+
+function showBanner(html){ banner.style.display='flex'; banner.innerHTML=html; }
+
+/* ─────────────────────────  boot  ───────────────────────── */
+try{
+  buildSim(PRESETS[presetIdx].tex);
+  buildComposer();
+  updateCaption();
+  onResize();
+  // debug/verification hook: step the sim+render N frames even when the tab is hidden (rAF is paused)
+  window.__sim = { frame, step:(n=1,dt=1/60)=>{ for(let i=0;i<n;i++) frame(dt, dt*1000); }, reseedAll,
+                   fit:(w,h)=>{ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); sizeComposer(); points.material.uniforms.uPixelRatio.value=renderer.getPixelRatio(); },
+                   set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; },
+                   get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs)}; } };
+  animate();
+}catch(err){
+  console.error(err);
+  if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the particle engine.<br><small>'+(err&&err.message||err)+'</small>');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaf Atlas — Generative Botany Simulations</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(130% 90% at 50% -10%,#0e1713 0%,#070b09 60%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;padding:54px 20px 90px}
+.wrap{max-width:1060px;margin:0 auto}
+.eyebrow{letter-spacing:.36em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:46px;margin:10px 0 6px;font-weight:600;letter-spacing:.01em}
+.volsplit{margin-top:54px;border-top:1px solid rgba(232,196,94,.12);padding-top:30px}
+.volsplit h2{font-size:34px;margin:8px 0 6px;font-weight:600;letter-spacing:.01em}
+.lede{color:var(--muted);font-size:16px;max-width:680px;line-height:1.65;font-style:italic;margin:0 0 8px}
+.lede a{color:var(--gold2);text-decoration:none;border-bottom:1px solid rgba(232,196,94,.3)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:38px}
+.card{display:block;text-decoration:none;color:inherit;border-radius:14px;overflow:hidden;
+  background:linear-gradient(#0c1410,#080d0b);border:1px solid rgba(232,196,94,.12);
+  transition:.18s;position:relative}
+.card:hover{border-color:rgba(232,196,94,.45);transform:translateY(-3px);
+  box-shadow:0 24px 60px -28px #000,0 0 30px -16px var(--gold)}
+.thumb{width:100%;aspect-ratio:16/10;display:block;background:#05080a}
+.meta{padding:14px 16px 18px}
+.num{font-family:ui-monospace,monospace;font-size:11px;color:var(--gold);letter-spacing:.2em}
+.title{font-size:20px;margin:3px 0 4px;font-weight:600}
+.algo{font-family:ui-monospace,monospace;font-size:11px;color:var(--green);letter-spacing:.04em;margin-bottom:8px}
+.blurb{color:var(--muted);font-size:13px;line-height:1.55}
+.foot{margin-top:46px;border-top:1px solid rgba(232,196,94,.12);padding-top:22px;color:var(--muted);
+  font-size:13.5px;line-height:1.7;max-width:760px}
+.foot b{color:var(--ink)}
+.tags{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);
+  border:1px solid rgba(232,196,94,.16);padding:4px 9px;border-radius:20px}
+.tilebadge{position:absolute;top:10px;right:10px;font-family:ui-monospace,monospace;font-size:9.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);background:rgba(7,11,9,.72);
+  border:1px solid rgba(232,196,94,.4);padding:3px 9px;border-radius:20px;backdrop-filter:blur(4px)}
+.tilebadge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.45)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Art Simulations · Vol. I</div>
+  <h1>The Leaf Atlas</h1>
+  <p class="lede">Eight generative simulations that grow leaf structure from first principles — an algorithmic answer to
+  the <a href="https://huggingface.co/collections/lamm-mit/leaf-inspired-image-generation" target="_blank">lamm-mit
+  leaf-inspired image generation</a> collection, where MIT's Markus Buehler lab fine-tunes diffusion models on
+  <i>&lt;leaf microstructure&gt;</i> to design bio-materials. Where they sample, these compute. Click any tile to run it live.</p>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="volsplit">
+    <div class="eyebrow">Art Simulations · Vol. II</div>
+    <h2>Cosmos</h2>
+    <p class="lede">Beyond the leaf. The first GPU-driven pieces — millions of particles advected on the graphics card,
+    where the same handful of velocity fields that move smoke, chaos, and galaxies are made visible at once.</p>
+  </div>
+
+  <div class="grid" id="grid2"></div>
+
+  <div class="volsplit">
+    <div class="eyebrow">Art Simulations · Vol. III</div>
+    <h2>Emergence</h2>
+    <p class="lede">Order without a designer — three studies where elaborate structure falls out of a few local rules:
+    a lightning fractal, a fluid you can stir, and a flock with a hawk. Forged with
+    <b style="color:var(--gold2);font-style:normal">Opus&nbsp;4.8 · ultracode</b>.</p>
+  </div>
+
+  <div class="grid" id="grid3"></div>
+
+  <div class="volsplit">
+    <div class="eyebrow">Art Simulations · Vol. IV</div>
+    <h2>Magnum Opus</h2>
+    <p class="lede">The crown. One piece that gathers everything the series learned — divergence-free flow, velocity-streak
+    rendering, an evolving timeline — into a living tapestry of millions of light-filaments that breathes through its
+    movements and never repeats. Forged with
+    <b style="color:var(--gold2);font-style:normal">Opus&nbsp;4.8</b>.</p>
+  </div>
+
+  <div class="grid" id="grid4"></div>
+
+  <div class="foot">
+    <b>Why these five.</b> Each maps an algorithm family onto a design principle the lamm-mit work targets — venation
+    hierarchy, cellular tissue, corrugated folding, vascular transport, and Fibonacci leaf arrangement. Every piece is a
+    single self-contained HTML file: vanilla canvas, no libraries, no build step. Open one and read its source.
+    <div class="tags">
+      <span class="tag">space colonization</span><span class="tag">gray–scott RD</span>
+      <span class="tag">differential growth</span><span class="tag">physarum</span>
+      <span class="tag">phyllotaxis</span>
+    </div>
+    <p style="margin-top:18px"><b>Sixteen pieces across three volumes — and still growing.</b> Queued next:
+    cymatics / Chladni plates · ferromagnetic spikes · crack propagation · more Cosmos GPGPU.</p>
+  </div>
+</div>
+
+<script>
+// lightweight generative glyphs — drawn once per card
+const SIMS=[
+  {n:'01',t:'Auxin Bloom',a:'space colonization · murray\'s law',href:'01-auxin-bloom/index.html',
+   b:'Veins chase scattered hormone sources until a whole blade is fed, then thicken by Murray\'s law.',g:'branch'},
+  {n:'02',t:'Turing Tissue',a:'gray–scott reaction–diffusion',href:'02-turing-tissue/index.html',
+   b:'Two diffusing reagents self-organize into veins, dividing cells, or coral — living cellwork.',g:'turing'},
+  {n:'03',t:'Crinkle Margin',a:'differential growth',href:'03-crinkle-margin/index.html',
+   b:'An over-grown edge buckles into ruffles — the physics of kale and dehydrated palm leaves.',g:'crinkle'},
+  {n:'04',t:'Slime Veins',a:'physarum stigmergy · 42k agents',href:'04-slime-veins/index.html',
+   b:'Blind agents lay and follow a chemical trail; an efficient transport network emerges and prunes itself.',g:'net'},
+  {n:'05',t:'Phyllotaxis Bloom',a:'golden-angle packing',href:'05-phyllotaxis-bloom/index.html',
+   b:'One irrational turn of 137.5° packs primordia with no gaps; Fibonacci spirals fall out for free.',g:'spiral'},
+  {n:'14',t:'Frond',a:'L-system · turtle graphics',href:'14-frond/index.html',
+   b:'One rewrite rule, applied to itself, unfurls a self-similar fern with leaflets at every tip.',g:'fern'},
+  {n:'15',t:'Dendrite',a:'diffusion-limited aggregation',href:'15-dendrite/index.html',
+   b:'Particles random-walk in and freeze on contact; exposed tips win, so roughness amplifies into a fractal.',g:'dla'},
+  {n:'16',t:'Areole',a:'voronoi · jump-flood + lloyd',href:'16-areole/index.html',
+   b:'Nearest-seed cells tile a leaf and relax to an even mosaic — the tissue between the minor veins.',g:'voronoi'},
+];
+const GOLD='#e8c45e',GOLD2='#f6e6a8',GRN='#2f9e6f';
+function rnd(s){return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};}
+
+function glyph(cv,kind,seed){
+  const w=cv.width=600,h=cv.height=375,x=cv.getContext('2d');const R=rnd(seed);
+  const bg=x.createRadialGradient(w/2,0,10,w/2,h,h);bg.addColorStop(0,'#0e1814');bg.addColorStop(1,'#06100b');
+  x.fillStyle=bg;x.fillRect(0,0,w,h);x.lineCap='round';x.lineJoin='round';
+  if(kind==='branch'){
+    x.strokeStyle=GOLD;
+    (function br(px,py,ang,len,d){if(d<=0||len<3)return;
+      const nx=px+Math.cos(ang)*len,ny=py+Math.sin(ang)*len;
+      x.globalAlpha=0.85;x.lineWidth=d*0.9;x.beginPath();x.moveTo(px,py);x.lineTo(nx,ny);x.stroke();
+      const k=2+(R()<0.4?1:0);for(let i=0;i<k;i++){const da=(R()-0.5)*1.1;br(nx,ny,ang+da,len*(0.72+R()*0.12),d-1);}
+    })(w/2,h-8,-Math.PI/2,46,7);
+  }else if(kind==='turing'){
+    for(let i=0;i<46;i++){x.strokeStyle=i%2?GOLD:GRN;x.globalAlpha=0.55;x.lineWidth=4;
+      x.beginPath();const ph=R()*6.28,fr=0.012+R()*0.02,off=20+i*7;
+      for(let xx=0;xx<=w;xx+=8){const yy=off+Math.sin(xx*fr+ph)*18+Math.sin(xx*fr*2.3)*9;
+        xx===0?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();}
+  }else if(kind==='crinkle'){
+    x.strokeStyle=GOLD2;x.globalAlpha=0.9;x.lineWidth=2.2;x.beginPath();
+    const cx=w/2,cy=h/2,N=240;
+    for(let i=0;i<=N;i++){const a=i/N*6.2832;
+      const rr=92+Math.sin(a*7+R()*6)*16+Math.sin(a*13)*9+Math.sin(a*23)*5;
+      const px=cx+Math.cos(a)*rr*1.5,py=cy+Math.sin(a)*rr;i?x.lineTo(px,py):x.moveTo(px,py);}
+    x.closePath();x.stroke();
+  }else if(kind==='net'){
+    const pts=[];for(let i=0;i<26;i++)pts.push([40+R()*(w-80),30+R()*(h-60)]);
+    x.strokeStyle=GOLD;x.globalAlpha=0.5;x.lineWidth=1.4;
+    for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+      const dx=pts[i][0]-pts[j][0],dy=pts[i][1]-pts[j][1];if(Math.hypot(dx,dy)<150){
+        x.beginPath();x.moveTo(pts[i][0],pts[i][1]);x.lineTo(pts[j][0],pts[j][1]);x.stroke();}}
+    x.globalAlpha=0.95;for(const p of pts){x.fillStyle=GOLD2;x.beginPath();x.arc(p[0],p[1],2.4,0,6.29);x.fill();}
+  }else if(kind==='spiral'){
+    const cx=w/2,cy=h/2,M=420,c=9;
+    for(let i=0;i<M;i++){const a=i*2.39996,r=c*Math.sqrt(i);
+      const px=cx+Math.cos(a)*r*1.5,py=cy+Math.sin(a)*r;const t=i/M;
+      x.fillStyle=t<0.5?GOLD2:GRN;x.globalAlpha=0.85;
+      x.beginPath();x.arc(px,py,1.6+t*2.2,0,6.29);x.fill();}
+  }else if(kind==='flux'){
+    x.globalCompositeOperation='lighter';
+    const N=1500;
+    for(let i=0;i<N;i++){
+      let px=R()*w, py=R()*h;const t=R();
+      x.fillStyle=t<0.4?GRN:(t<0.82?GOLD:GOLD2);x.globalAlpha=0.45;
+      for(let s=0;s<16;s++){
+        const a=Math.sin(px*0.012+py*0.008)*2.0+Math.cos(py*0.014-px*0.006)*2.0;
+        px+=Math.cos(a)*4.4;py+=Math.sin(a)*4.4;
+        x.beginPath();x.arc(px,py,0.85,0,6.29);x.fill();}
+    }
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='genesis'){
+    x.globalCompositeOperation='lighter';
+    const ms=[];for(let i=0;i<6;i++)ms.push([w*(0.18+R()*0.64),h*(0.18+R()*0.64)]);
+    for(let i=0;i<1500;i++){const m=ms[(R()*ms.length)|0];
+      const a=R()*6.283,rr=Math.pow(R(),1.7)*130,px=m[0]+Math.cos(a)*rr,py=m[1]+Math.sin(a)*rr,t=1-rr/130;
+      x.fillStyle=t>0.62?GOLD2:(t>0.32?GOLD:GRN);x.globalAlpha=0.5;
+      x.beginPath();x.arc(px,py,0.7+t*1.3,0,6.28);x.fill();}
+    for(const m of ms){x.fillStyle=GOLD2;x.globalAlpha=0.95;x.beginPath();x.arc(m[0],m[1],2.6,0,6.28);x.fill();}
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='magnetosphere'){
+    const cx=w/2,cy=h/2;x.globalAlpha=0.55;x.lineWidth=1.5;
+    for(let s=1;s<=7;s++){const L=20+s*20;
+      for(let sg=-1;sg<=1;sg+=2){x.strokeStyle=s%2?GOLD:GRN;x.beginPath();
+        for(let th=0.1;th<Math.PI-0.1;th+=0.06){const r=L*Math.sin(th)*Math.sin(th);
+          const px=cx+sg*r*Math.sin(th),py=cy-r*Math.cos(th);th<0.12?x.moveTo(px,py):x.lineTo(px,py);}
+        x.stroke();}}
+    x.globalCompositeOperation='lighter';
+    for(let i=0;i<260;i++){const pl=R()<0.5?-1:1,a=(R()-0.5)*0.8,rr=R()*44;
+      x.fillStyle=GOLD2;x.globalAlpha=0.45;x.beginPath();x.arc(cx+Math.sin(a)*rr,cy+pl*(58+rr*1.3),0.9,0,6.28);x.fill();}
+    x.globalCompositeOperation='source-over';
+    x.globalAlpha=1;x.fillStyle='#0a0f0c';x.beginPath();x.arc(cx,cy,9,0,6.28);x.fill();
+    x.strokeStyle=GOLD;x.lineWidth=1.4;x.stroke();
+  }else if(kind==='maelstrom'){
+    x.globalCompositeOperation='lighter';
+    const vo=[];for(let i=0;i<5;i++)vo.push([w*(0.2+R()*0.6),h*(0.2+R()*0.6),R()<0.5?1:-1]);
+    for(let i=0;i<820;i++){let px=R()*w,py=R()*h;const t=R();
+      x.fillStyle=t<0.5?GRN:GOLD;x.globalAlpha=0.4;
+      for(let s=0;s<14;s++){let ax=0,ay=0;
+        for(const o of vo){const dx=px-o[0],dy=py-o[1],d2=dx*dx+dy*dy+500;ax+=-o[2]*dy/d2*1100;ay+=o[2]*dx/d2*1100;}
+        px+=ax*0.5;py+=ay*0.5;x.beginPath();x.arc(px,py,0.8,0,6.28);x.fill();}}
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='singularity'){
+    const cx=w/2,cy=h/2;x.globalCompositeOperation='lighter';
+    for(let i=0;i<2600;i++){const a=R()*6.283,rr=34+Math.pow(R(),0.5)*120,
+      px=cx+Math.cos(a)*rr,py=cy+Math.sin(a)*rr*0.32,bm=0.5+0.5*Math.cos(a);
+      x.fillStyle=bm>0.7?GOLD2:(bm>0.4?GOLD:GRN);x.globalAlpha=0.16+bm*0.5;
+      x.beginPath();x.arc(px,py,0.7+bm*1.0,0,6.28);x.fill();}
+    x.globalCompositeOperation='source-over';
+    x.fillStyle='#05080a';x.beginPath();x.arc(cx,cy,22,0,6.28);x.fill();
+  }else if(kind==='bolt'){
+    x.globalCompositeOperation='lighter';x.strokeStyle=GOLD2;
+    const bolt=(px,py,ang,len,d)=>{if(d<=0||len<5)return;let cx=px,cy=py;
+      for(let s=0;s<4;s++){ang+=(R()-0.5)*0.5;const nx=cx+Math.cos(ang)*len/4,ny=cy+Math.sin(ang)*len/4;
+        x.globalAlpha=0.5;x.lineWidth=d*0.55;x.beginPath();x.moveTo(cx,cy);x.lineTo(nx,ny);x.stroke();
+        cx=nx;cy=ny;if(R()<0.5)bolt(cx,cy,ang+(R()-0.5)*1.5,len*0.62,d-1);}};
+    for(let i=0;i<7;i++)bolt(w/2,h/2,i/7*6.283+R(),92,4);
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='fluid'){
+    x.globalCompositeOperation='lighter';
+    for(let i=0;i<28;i++){const px=R()*w,py=R()*h,rr=22+R()*72,t=R();
+      const col=t<0.5?'47,158,111':(t<0.85?'232,196,94':'246,230,168');
+      const g=x.createRadialGradient(px,py,0,px,py,rr);
+      g.addColorStop(0,'rgba('+col+','+(0.10+R()*0.12)+')');g.addColorStop(1,'rgba('+col+',0)');
+      x.fillStyle=g;x.beginPath();x.arc(px,py,rr,0,6.28);x.fill();}
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='flock'){
+    x.globalCompositeOperation='lighter';const cx=w/2,cy=h/2;
+    for(let i=0;i<720;i++){const a=R()*6.283,rr=Math.pow(R(),0.7)*Math.min(w,h)*0.52;
+      const px=cx+Math.cos(a)*rr*1.35,py=cy+Math.sin(a)*rr,dir=a+1.57+(R()-0.5)*0.7,ln=2+R()*4,t=R();
+      x.strokeStyle=t<0.4?'rgba(47,158,111,0.5)':(t<0.85?'rgba(232,196,94,0.6)':'rgba(246,230,168,0.75)');
+      x.lineWidth=0.8+t*0.8;x.beginPath();x.moveTo(px,py);x.lineTo(px+Math.cos(dir)*ln,py+Math.sin(dir)*ln);x.stroke();}
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='fern'){
+    x.globalCompositeOperation='lighter';x.lineCap='round';
+    var fern=function(px,py,ang,len,d){if(d<=0||len<3)return;
+      var nx=px+Math.cos(ang)*len,ny=py+Math.sin(ang)*len;
+      x.strokeStyle=d>2?'rgba(232,196,94,0.8)':'rgba(150,206,140,0.7)';x.lineWidth=d*0.7;
+      x.beginPath();x.moveTo(px,py);x.lineTo(nx,ny);x.stroke();
+      fern(nx,ny,ang-0.5+R()*0.12,len*0.62,d-1);
+      fern(nx,ny,ang+0.5-R()*0.12,len*0.62,d-1);
+      fern(nx,ny,ang+(R()-0.5)*0.22,len*0.72,d-1);};
+    fern(w/2,h-12,-Math.PI/2,48,5);
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='dla'){
+    x.globalCompositeOperation='lighter';x.lineCap='round';
+    var arm=function(px,py,ang,len,d){if(d<=0||len<2)return;var cx=px,cy=py;
+      for(var s=0;s<3;s++){ang+=(R()-0.5)*0.9;var nx=cx+Math.cos(ang)*len/3,ny=cy+Math.sin(ang)*len/3;
+        x.strokeStyle=d>2?'rgba(247,222,150,0.85)':'rgba(232,196,94,0.7)';x.lineWidth=d*0.5;
+        x.beginPath();x.moveTo(cx,cy);x.lineTo(nx,ny);x.stroke();cx=nx;cy=ny;
+        if(R()<0.6)arm(cx,cy,ang+(R()-0.5)*1.7,len*0.58,d-1);}};
+    for(var i=0;i<9;i++)arm(w/2,h/2,i/9*6.283+R()*0.3,72,4);
+    x.globalCompositeOperation='source-over';
+  }else if(kind==='voronoi'){
+    var sites=[];for(var i=0;i<26;i++)sites.push([R()*w,R()*h]);
+    var cw=7,cols=Math.ceil(w/cw),rows=Math.ceil(h/cw),id=new Int16Array(cols*rows);
+    for(var gy=0;gy<rows;gy++)for(var gx=0;gx<cols;gx++){var qx=gx*cw+cw/2,qy=gy*cw+cw/2,bd=1e9,bi=0;
+      for(var s=0;s<sites.length;s++){var dx=qx-sites[s][0],dy=qy-sites[s][1],dd=dx*dx+dy*dy;if(dd<bd){bd=dd;bi=s;}}
+      id[gy*cols+gx]=bi;}
+    for(var gy=0;gy<rows;gy++)for(var gx=0;gx<cols;gx++){var sid=id[gy*cols+gx];
+      var rt=gx<cols-1?id[gy*cols+gx+1]:sid,dn=gy<rows-1?id[(gy+1)*cols+gx]:sid;
+      x.fillStyle=(rt!==sid||dn!==sid)?'rgba(246,230,168,0.9)':((sid%3)?'rgba(47,150,105,0.42)':'rgba(64,96,58,0.42)');
+      x.fillRect(gx*cw,gy*cw,cw,cw);}
+  }else if(kind==='weave'){
+    x.globalCompositeOperation='lighter';
+    for(var i=0;i<950;i++){
+      var px=R()*w,py=R()*h,t=R();
+      x.strokeStyle=t<0.5?'rgba(47,150,105,0.5)':(t<0.85?'rgba(232,196,94,0.52)':'rgba(246,230,168,0.64)');
+      x.lineWidth=0.8;x.beginPath();x.moveTo(px,py);
+      for(var s=0;s<11;s++){var a=Math.sin(px*0.013+py*0.009)*2.2+Math.cos(py*0.015-px*0.007)*2.2;
+        px+=Math.cos(a)*5.0;py+=Math.sin(a)*5.0;x.lineTo(px,py);}
+      x.stroke();
+    }
+    x.globalCompositeOperation='source-over';
+  }
+  x.globalAlpha=1;
+}
+
+const SIMS2=[
+  {n:'06',t:'Flux',a:'curl-noise GPGPU · 1M+ points',href:'06-flux/index.html',
+   b:'A million points of dust ride one GPU velocity field — breathe it into a curl-noise aurora, a strange attractor, or a spiral galaxy.',g:'flux'},
+  {n:'07',t:'Genesis',a:'newtonian n-body · gravity',href:'07-genesis/index.html',
+   b:'A scatter of suns pulls a million grains of dust into filaments, clusters, and slow collapse.',g:'genesis'},
+  {n:'08',t:'Magnetosphere',a:'charged dust · magnetic dipole',href:'08-magnetosphere/index.html',
+   b:'Charged motes spiral down a planet\'s dipole field lines and burn in auroral sheets at the poles.',g:'magnetosphere'},
+  {n:'09',t:'Maelstrom',a:'point-vortex turbulence',href:'09-maelstrom/index.html',
+   b:'A handful of whirlpools stir a sea of light into storms that merge, orbit, and devour one another.',g:'maelstrom'},
+  {n:'10',t:'Singularity',a:'black-hole accretion disk',href:'10-singularity/index.html',
+   b:'A million motes fall toward a hole in space; the inner edge burns, Doppler-beamed bright by its own speed.',g:'singularity'},
+];
+
+const SIMS3=[
+  {n:'11',t:'Lichtenberg',a:'dielectric breakdown · DBM',href:'11-lichtenberg/index.html',
+   b:'A stochastic Laplacian fractal grows a branched discharge outward — a Lichtenberg figure etched into the dark.',g:'bolt',badge:1},
+  {n:'12',t:'Stable Fluids',a:'navier–stokes · jos stam',href:'12-stable-fluids/index.html',
+   b:'A faithful semi-Lagrangian fluid solver you can stir by hand; ink unfurls and remembers every eddy.',g:'fluid',badge:1},
+  {n:'13',t:'Murmuration',a:'reynolds boids · spatial hash',href:'13-murmuration/index.html',
+   b:'2,500 starlings, three rules, one hawk — the rolling flash-waves of a murmuration with no leader.',g:'flock',badge:1},
+];
+
+function makeCard(s,seed,grid){
+  const a=document.createElement('a');a.className='card';a.href=s.href;
+  const cv=document.createElement('canvas');cv.className='thumb';
+  a.appendChild(cv);
+  const _fable=parseInt(s.n,10)<=5;
+  const _bd=document.createElement('div');_bd.className='tilebadge'+(_fable?' fable':'');
+  _bd.textContent=_fable?'Fable 5':(s.badge?'Opus 4.8 · ultracode':'Opus 4.8');a.appendChild(_bd);
+  const m=document.createElement('div');m.className='meta';
+  m.innerHTML=`<div class="num">${s.n}</div><div class="title">${s.t}</div>
+    <div class="algo">${s.a}</div><div class="blurb">${s.b}</div>`;
+  a.appendChild(m);grid.appendChild(a);
+  glyph(cv,s.g,seed);
+}
+const grid=document.getElementById('grid');
+SIMS.forEach((s,i)=>makeCard(s,(i+1)*9173+7,grid));
+const grid2=document.getElementById('grid2');
+SIMS2.forEach((s,i)=>makeCard(s,(i+6)*4211+13,grid2));
+const grid3=document.getElementById('grid3');
+SIMS3.forEach((s,i)=>makeCard(s,(i+11)*7919+5,grid3));
+
+const SIMS4=[
+  {n:'17',t:'Aurelian',a:'curl-noise flow · velocity-streak lines · 2M+',href:'17-aurelian/index.html',
+   b:'Millions of velocity-streak filaments woven by a divergence-free flow — a living tapestry that breathes through laminar, turbulent, vortical and calm movements, and never repeats.',g:'weave'},
+];
+const grid4=document.getElementById('grid4');
+SIMS4.forEach((s,i)=>makeCard(s,(i+17)*6271+9,grid4));
+</script>
+</body>
+</html>

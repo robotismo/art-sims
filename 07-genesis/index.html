@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Genesis — Newtonian N-Body Gravity</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:26px 18px 64px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600;letter-spacing:.01em}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic;text-align:center;max-width:680px}
+.stage{position:relative;border-radius:14px;overflow:hidden;width:clamp(360px,94vw,1180px);height:clamp(380px,72vh,720px);
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 90px -34px #000;background:#04070a}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;top:12px;left:14px;font-family:ui-monospace,monospace;font-size:11px;
+  color:var(--muted);letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 3px #000}
+.hud b{color:var(--gold2);font-weight:500}
+.modechip{position:absolute;top:12px;right:14px;font-family:ui-monospace,monospace;font-size:11px;
+  letter-spacing:.18em;color:var(--gold);pointer-events:none;text-shadow:0 1px 3px #000}
+.hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:ui-monospace,monospace;
+  font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
+.banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+  padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04070ae6}
+.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:center;
+  margin:18px 0 10px;max-width:1080px}
+.seg{display:inline-flex;border:1px solid rgba(232,196,94,.28);border-radius:9px;overflow:hidden}
+.seg button{border:none;border-radius:0;border-right:1px solid rgba(232,196,94,.18)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:linear-gradient(var(--green),#1f6f4d);color:#fff;box-shadow:inset 0 0 14px -4px var(--gold)}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:8px 14px;border-radius:9px;font:inherit;font-size:12.5px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 16px -4px var(--gold)}
+button:disabled{opacity:.34;cursor:default;box-shadow:none;border-color:rgba(232,196,94,.16)}
+.ctl{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:96px}
+.caption{max-width:720px;text-align:center;color:var(--muted);font-size:13px;line-height:1.62;margin-top:6px}
+.caption b{color:var(--ink);font-weight:600}
+.caption .live{color:var(--gold2)}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;z-index:5}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 07 · Vol. II · Cosmos</div>
+<div class="badge">Opus 4.8</div>
+<h1>Genesis</h1>
+<p class="sub">Two galaxies fall through each other and fling a million grains of light into tidal tails.</p>
+
+<div class="stage" id="stage">
+  <canvas id="c"></canvas>
+  <div class="hud" id="hud">—</div>
+  <div class="modechip" id="modechip">FLYBY</div>
+  <div class="hint" id="hint">drag to orbit · scroll to dive · move the cursor to pull the tails · click to drop a core</div>
+  <div class="banner" id="banner"></div>
+</div>
+
+<div class="controls">
+  <button id="reseed">⟳ Reseed</button>
+  <button id="encounter">encounter: flyby</button>
+  <div class="ctl">gravity <input id="s_grav" type="range" min="4" max="80" value="30"></div>
+  <div class="ctl">galaxies <input id="s_suns" type="range" min="2" max="5" value="2"></div>
+  <div class="ctl">drift <input id="s_drift" type="range" min="4" max="40" value="16"></div>
+  <div class="ctl">glow <input id="s_glow" type="range" min="20" max="170" value="74"></div>
+  <button id="trails">trails: off</button>
+  <button id="push">▲ Push it · 1.0M</button>
+  <button id="save">⤓ Save PNG</button>
+</div>
+
+<p class="caption" id="caption"></p>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+import { EffectComposer }   from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }       from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }  from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { AfterimagePass }   from 'three/addons/postprocessing/AfterimagePass.js';
+import { OutputPass }       from 'three/addons/postprocessing/OutputPass.js';
+import { OrbitControls }    from 'three/addons/controls/OrbitControls.js';
+
+/* ─────────────────────────  constants / state  ───────────────────────── */
+const BOUND = 110.0, KILL = 320.0;
+const MAX_BODIES = 48;                 // GLSL uniform-array hard ceiling (uBodies[48]); CPU may hold more
+const PRESETS = [
+  { tex:512,  label:'0.26M' },
+  { tex:768,  label:'0.6M' },
+  { tex:1024, label:'1.0M' },
+  { tex:1448, label:'2.1M' },
+];
+let presetIdx = 2;                 // 1M default — the dense glow reads richer than the sparse field
+const ui = {
+  grav:  30.0,      // uG
+  suns:  2,         // number of galaxies (cores), each wrapped in its own dust disk
+  encounter: 'flyby', // 'flyby' = grazing single pass (tidal tails) | 'merge' = bound dance
+  drift: 16/100,    // dt time-scaling
+  glow:  0.74,      // bloom strength
+  trails: false,    // the velocity-streak segments ARE the trails; afterimage would re-smear to fog
+};
+
+/* ─────────────────────────  shared GLSL chunks  ───────────────────────── */
+const HASH = `
+float hash11(float p){ p=fract(p*0.1031); p*=p+33.33; p*=p+p; return fract(p); }
+vec3 hash33(vec3 p3){
+  p3=fract(p3*vec3(0.1031,0.1030,0.0973));
+  p3+=dot(p3,p3.yxz+33.33);
+  return fract((p3.xxy+p3.yxx)*p3.zyx);
+}`;
+
+// Ashima / Stefan Gustavson 3D simplex noise (public domain)
+const SNOISE = `
+vec4 permute(vec4 x){ return mod(((x*34.0)+1.0)*x,289.0); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159-0.85373472095314*r; }
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+1.0*C.xxx; vec3 x2=x0-i2+2.0*C.xxx; vec3 x3=x0-1.0+3.0*C.xxx;
+  i=mod(i,289.0);
+  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=1.0/7.0; vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z);
+  vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}
+vec3 snoiseVec3(vec3 x){
+  return vec3(snoise(x),
+              snoise(x+vec3(123.4,517.1,931.7)),
+              snoise(x+vec3(-415.3,251.9,-741.2)));
+}
+vec3 curlNoise(vec3 p){
+  const float e=0.18;
+  vec3 dx=vec3(e,0.0,0.0), dy=vec3(0.0,e,0.0), dz=vec3(0.0,0.0,e);
+  vec3 px0=snoiseVec3(p-dx), px1=snoiseVec3(p+dx);
+  vec3 py0=snoiseVec3(p-dy), py1=snoiseVec3(p+dy);
+  vec3 pz0=snoiseVec3(p-dz), pz1=snoiseVec3(p+dz);
+  float x=(py1.z-py0.z)-(pz1.y-pz0.y);
+  float y=(pz1.x-pz0.x)-(px1.z-px0.z);
+  float z=(px1.y-px0.y)-(py1.x-py0.x);
+  return vec3(x,y,z)/(2.0*e);
+}`;
+
+// seed positions (shared by both compute shaders so reseed is consistent)
+// Tracer dust seeds into a large spherical shell with a small tangential swirl.
+const SEED = `
+uniform float uBound, uGalaxyR, uG;
+uniform int   uNumBodies;
+uniform vec4  uBodies[48];     // xyz = position, w = mass
+uniform vec3  uBodyVel[48];    // core bulk velocity (so dust seeds onto a MOVING galaxy)
+
+// GLSL-ES-1.00-safe selection (only loop-index array access, never a dynamic index)
+vec4 coreData(int k){
+  vec4 c = uBodies[0];
+  for(int i=0;i<48;i++){ if(i>=uNumBodies) break; if(i==k) c = uBodies[i]; }
+  return c;
+}
+vec3 coreVel(int k){
+  vec3 v = uBodyVel[0];
+  for(int i=0;i<48;i++){ if(i>=uNumBodies) break; if(i==k) v = uBodyVel[i]; }
+  return v;
+}
+int galaxyOf(vec2 ref){           // each grain belongs to one galaxy, stably
+  float h = hash11(ref.x*53.1 + ref.y*97.7);
+  int k = int(floor(h*float(uNumBodies)));
+  return (k>=uNumBodies) ? (uNumBodies-1) : k;
+}
+vec3 seedPosition(vec2 ref, float t){
+  int k = galaxyOf(ref);
+  vec3 c = coreData(k).xyz;
+  vec3 h = hash33(vec3(ref*vec2(443.7,191.3), t*0.017));
+  float rr = uGalaxyR*(0.10 + 0.90*sqrt(h.x));     // a flat disk around this galaxy's core
+  float a  = h.y*6.28318530718;
+  float zz = (h.z-0.5)*uGalaxyR*0.10;
+  return c + vec3(rr*cos(a), rr*sin(a), zz);
+}
+vec3 seedVelocity(vec2 ref, vec3 sp){
+  int k = galaxyOf(ref);
+  vec4 cd = coreData(k);
+  vec3 rel = sp - cd.xyz;
+  float r = length(rel.xy)+1.0;
+  vec2 rh = rel.xy/r; vec2 th = vec2(-rh.y, rh.x);
+  float vc = sqrt(uG*cd.w/r);                      // circular orbit about its own core ...
+  return vec3(th*vc, 0.0) + coreVel(k);            // ... carried along by the core's bulk motion
+}`;
+
+/* ─────────────────────────  velocity compute shader  ───────────────────────── */
+// Massless tracers: a = sum_b G*m_b * d / (r2*sqrt(r2)), r2 = dot(d,d)+uSoft^2.
+const VELOCITY_FRAG = `
+uniform float uTime, uDelta;
+uniform float uSoft, uKillRadius, uMaxSpeed, uDiskK;
+uniform vec3  uMouseOrigin, uMouseDir;
+uniform float uStirStrength, uStirRadius, uStirRadial;
+${HASH}
+${SNOISE}
+${SEED}
+
+vec3 clampLen(vec3 v, float m){ float l=length(v); return l>m ? v*(m/l) : v; }
+
+vec3 gravityAccel(vec3 pos){
+  vec3 a = vec3(0.0);
+  for(int i=0;i<48;i++){
+    if(i>=uNumBodies) break;
+    vec4 B = uBodies[i];
+    vec3 d = B.xyz - pos;
+    float r2 = dot(d,d) + uSoft*uSoft;
+    float inv = inversesqrt(r2);
+    a += uG * B.w * d * (inv*inv*inv);     // G*m*d / (r2)^1.5
+  }
+  return a;
+}
+
+vec3 pointerForce(vec3 pos){
+  if(uStirStrength<=0.001) return vec3(0.0);
+  vec3 o=uMouseOrigin, d=uMouseDir;
+  float t = max(dot(pos-o,d), 0.0);
+  vec3 closest = o + d*t;
+  vec3 toP = pos - closest;
+  float dist = length(toP)+1e-3;
+  float fall = exp(-(dist*dist)/(uStirRadius*uStirRadius));
+  vec3 tang = normalize(cross(d, toP)+vec3(1e-5));
+  vec3 rad  = -toP/dist;                    // pull dust toward the cursor ray
+  return (rad + tang*uStirRadial) * uStirStrength * fall;
+}
+
+void main(){
+  vec2 uv = gl_FragCoord.xy/resolution.xy;
+  vec4 P  = texture2D(texturePosition, uv);
+  vec3 pos = P.xyz; float life = P.w;
+  vec4 V  = texture2D(textureVelocity, uv);
+  vec3 vel = V.xyz; float age = V.w;
+
+  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+
+  if(reseed){
+    vec3 sp = seedPosition(uv, uTime);
+    vec3 nv = seedVelocity(uv, sp);
+    gl_FragColor = vec4(nv, 0.0);
+    return;
+  }
+
+  vec3 a = gravityAccel(pos);
+  a += pointerForce(pos);
+  a.z += -pos.z*uDiskK - vel.z*0.5;         // confine dust to a thin disk so spiral wakes read face-on
+  vel = vel*0.9998 + a*uDelta;              // near-conservative -> orbits persist & stretch into streams
+  vel = clampLen(vel, uMaxSpeed);
+  age += uDelta;
+  gl_FragColor = vec4(vel, age);
+}`;
+
+/* ─────────────────────────  position compute shader  ───────────────────────── */
+const POSITION_FRAG = `
+uniform float uTime, uDelta, uKillRadius, uLifeRate;
+${HASH}
+${SEED}
+void main(){
+  vec2 uv = gl_FragCoord.xy/resolution.xy;
+  vec4 P = texture2D(texturePosition, uv);
+  vec3 pos = P.xyz; float life = P.w;
+  vec3 vel = texture2D(textureVelocity, uv).xyz;
+
+  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+  if(reseed){
+    pos  = seedPosition(uv, uTime);
+    life = 0.55 + 0.45*hash11(uv.x*51.3+uv.y*19.1+uTime*0.013);
+  } else {
+    pos += vel*uDelta;
+    float rate = uLifeRate*(0.5+hash11(uv.x*131.7+uv.y*97.3));
+    life -= rate*uDelta;
+  }
+  gl_FragColor = vec4(pos, life);
+}`;
+
+/* ─── render shaders: each grain is a velocity-aligned LINE SEGMENT (a star-streak) ─── */
+// Coherent flows (tidal tails, disks) draw aligned bright streaks; incoherent fog stays dim.
+const POINTS_VERT = `
+uniform sampler2D texturePosition;
+uniform sampler2D textureVelocity;
+uniform float uPixelRatio, uSpeedScale, uTrail;
+attribute vec2 reference;
+attribute float aEnd;                  // 0 = head (at pos), 1 = tail (back along velocity)
+varying float vSpeed; varying float vLife; varying float vDepth; varying float vEnd;
+void main(){
+  vec4 P = texture2D(texturePosition, reference);
+  vec3 pos = P.xyz; vLife = P.w;
+  vec3 vel = texture2D(textureVelocity, reference).xyz;
+  vSpeed = clamp(length(vel)/uSpeedScale, 0.0, 1.0);
+  vEnd = aEnd;
+  vec3 world = pos - vel * (aEnd * uTrail);   // streak length proportional to speed
+  vec4 mv = modelViewMatrix * vec4(world,1.0);
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+}`;
+
+const POINTS_FRAG = `
+precision highp float;
+uniform float uExposure, uFogDensity, uWarm;
+varying float vSpeed; varying float vLife; varying float vDepth; varying float vEnd;
+vec3 ramp(float t){
+  // emerald -> teal -> gold -> pale -> white  (authored in linear space)
+  vec3 c0=vec3(0.04,0.40,0.24);   // deep emerald  #2f9e6f-ish
+  vec3 c1=vec3(0.07,0.58,0.46);   // teal
+  vec3 c2=vec3(0.92,0.70,0.22);   // warm gold     #e8c45e
+  vec3 c3=vec3(1.05,0.95,0.64);   // pale gold     #f6e6a8
+  vec3 c4=vec3(1.35,1.26,1.08);   // hot white (HDR)
+  vec3 c;
+  if(t<0.46)      c=mix(c0,c1,smoothstep(0.0,0.46,t));
+  else if(t<0.72) c=mix(c1,c2,smoothstep(0.46,0.72,t));
+  else if(t<0.90) c=mix(c2,c3,smoothstep(0.72,0.90,t));
+  else            c=mix(c3,c4,smoothstep(0.90,1.0,t));
+  return c;
+}
+void main(){
+  float t = clamp(vSpeed + uWarm*0.18, 0.0, 1.0);
+  vec3 col = ramp(t);
+  float fade = smoothstep(0.0,0.18,vLife);
+  float fog  = exp(-vDepth*uFogDensity);
+  float streak = 1.0 - vEnd; streak *= streak;   // bright at the head, fading down the tail
+  vec3 c = col * fade * fog * uExposure * (0.16 + 0.84*streak);
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
+/* ─────────────────────────  body (sun) render shaders  ───────────────────────── */
+const BODY_VERT = `
+uniform float uPointSize, uPixelRatio;
+attribute float aMass;
+varying float vMass;
+void main(){
+  vMass = aMass;
+  vec4 mv = modelViewMatrix * vec4(position,1.0);
+  gl_Position = projectionMatrix * mv;
+  float size = uPointSize*uPixelRatio*(360.0/max(-mv.z,1.0))*(0.6+0.9*sqrt(aMass));
+  gl_PointSize = clamp(size, 2.0, 90.0);
+}`;
+
+const BODY_FRAG = `
+precision highp float;
+uniform float uExposure;
+varying float vMass;
+void main(){
+  vec2 d = gl_PointCoord-0.5;
+  float r2 = dot(d,d);
+  if(r2>0.25) discard;
+  float core = exp(-r2*7.0);
+  float halo = exp(-r2*2.2)*0.5;
+  float a = core + halo;
+  vec3 hot = vec3(1.5,1.34,1.05);          // hot white-gold sun core (HDR)
+  vec3 c = hot * a * uExposure * (0.8+0.5*sqrt(vMass));
+  gl_FragColor = vec4(c, a);
+}`;
+
+/* ─────────────────────────  renderer / scene  ───────────────────────── */
+const canvas = document.getElementById('c');
+const stage  = document.getElementById('stage');
+const banner = document.getElementById('banner');
+
+let renderer, scene, camera, controls, composer, bloomPass, afterPass, gpu;
+let posVar, velVar, simU, points, geomRef = null;
+let bodyPoints = null, bodyGeom = null, bodyMat = null;
+let texSize = PRESETS[presetIdx].tex;
+const clock = new THREE.Clock();
+
+function stageSize(){ return { w: stage.clientWidth||1100, h: stage.clientHeight||640 }; }
+renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, preserveDrawingBuffer:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+{ const s=stageSize(); renderer.setSize(s.w, s.h, false); }
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+scene = new THREE.Scene();
+scene.background = makeBackgroundTexture();
+
+{ const s=stageSize(); camera = new THREE.PerspectiveCamera(56, s.w/s.h, 1, 5000); }
+camera.position.set(0, 70, 300);
+
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 40;
+controls.maxDistance = 1400;
+controls.autoRotateSpeed = 0.45;
+
+function makeBackgroundTexture(){
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+  const g = cv.getContext('2d');
+  const rad = g.createRadialGradient(256,210,30, 256,256,360);
+  rad.addColorStop(0,'#0c1512'); rad.addColorStop(0.55,'#070d0b'); rad.addColorStop(1,'#04070a');
+  g.fillStyle = rad; g.fillRect(0,0,512,512);
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+  return tx;
+}
+
+/* ─────────────────────────  CPU bodies (the suns)  ───────────────────────── */
+const SOFT_BODY = 12.0;            // softening among cores (close passes don't slingshot to infinity)
+const K_SPRING = 0.0003;           // tiny central spring keeps the encounter in frame
+const BODY_DAMP = 0.9999;          // near-conservative: the galaxies keep orbiting & re-passing
+const BODY_MAXR = BOUND*1.7;       // reflect any runaway core back in
+const GALAXY_R = 30.0;             // dust-disk radius around each core
+let bodies = [];                   // [{pos:Vector3, vel:Vector3, mass}]
+const bodyUniformArr = (() => { const a=[]; for(let i=0;i<MAX_BODIES;i++) a.push(new THREE.Vector4()); return a; })();
+const bodyVelArr     = (() => { const a=[]; for(let i=0;i<MAX_BODIES;i++) a.push(new THREE.Vector3()); return a; })();
+
+// Galaxy-collision setup: a few massive cores on an eccentric mutual orbit, each wrapped in a dust disk.
+function seedBodies(count){
+  bodies = [];
+  if(ui.encounter==='flyby'){
+    // GRAZING FLYBY: two galaxies fall in offset by an impact parameter, swing past once, and recede,
+    // each drawing a long trailing tidal tail (the classic Antennae two-tail figure).
+    const D=66.0, b=22.0;                              // approach half-separation, impact parameter (offset)
+    const vpar=Math.sqrt(2.0*ui.grav*104.0/(2.0*D));   // parabolic relative speed at this separation
+    const vx=vpar*0.55;                                // ~1.1× parabolic -> a single HYPERBOLIC pass (recedes)
+    // y-offset gives the impact parameter; the offset sign makes the pass PROGRADE with the CCW disks -> strong tails
+    bodies.push({pos:new THREE.Vector3(-D, -b, 0), vel:new THREE.Vector3(+vx, 0, 0), mass:58.0});
+    bodies.push({pos:new THREE.Vector3(+D, +b, 0), vel:new THREE.Vector3(-vx, 0, 0), mass:46.0});
+  } else {
+    // MERGE: a few massive cores on a near-stable eccentric binary -> shearing arms, then a slow merger
+    const n = Math.max(2, Math.min(6, count|0));
+    const RING=56.0, tmp=[]; let M=0;
+    for(let i=0;i<n;i++){
+      const ang=(i/n)*6.28318530718+0.35;
+      const t={pos:new THREE.Vector3(Math.cos(ang)*RING, Math.sin(ang)*RING, 0), ang, mass:42.0+24.0*Math.random()};
+      tmp.push(t); M+=t.mass;
+    }
+    const ORBIT_FRAC=0.8;
+    for(const t of tmp){
+      const vc=Math.sqrt(ui.grav*M/RING)*ORBIT_FRAC;
+      bodies.push({pos:t.pos, vel:new THREE.Vector3(-Math.sin(t.ang)*vc, Math.cos(t.ang)*vc, 0), mass:t.mass});
+    }
+  }
+  // zero net momentum so the encounter stays centred in frame
+  const P=new THREE.Vector3(); let MT=0;
+  for(const b of bodies){ P.addScaledVector(b.vel,b.mass); MT+=b.mass; }
+  P.multiplyScalar(1/MT);
+  for(const b of bodies) b.vel.sub(P);
+  // smaller disks in flyby so the tails stand clear of the cores
+  if(simU) simU.uGalaxyR.value = (ui.encounter==='flyby') ? 21.0 : GALAXY_R;
+}
+
+function stepBodies(dt){
+  const N = bodies.length;
+  // all-pairs mutual gravity with softening
+  const ax=new Float32Array(N), ay=new Float32Array(N), az=new Float32Array(N);
+  for(let i=0;i<N;i++){
+    const pi=bodies[i].pos; let aix=0,aiy=0,aiz=0;
+    for(let j=0;j<N;j++){
+      if(j===i) continue;
+      const pj=bodies[j].pos;
+      const dx=pj.x-pi.x, dy=pj.y-pi.y, dz=pj.z-pi.z;
+      const r2=dx*dx+dy*dy+dz*dz + SOFT_BODY*SOFT_BODY;
+      const inv=1.0/Math.sqrt(r2);
+      const f=ui.grav*bodies[j].mass*inv*inv*inv;   // cores feel the same G as the dust -> matched timescales
+      aix+=f*dx; aiy+=f*dy; aiz+=f*dz;
+    }
+    // weak central spring (-k*p) keeps the cluster from drifting/ejecting
+    aix-=K_SPRING*pi.x; aiy-=K_SPRING*pi.y; aiz-=K_SPRING*pi.z;
+    ax[i]=aix; ay[i]=aiy; az[i]=aiz;
+  }
+  // semi-implicit (symplectic) Euler with clamped dt, then reflect/clamp at max radius
+  const sdt=Math.min(dt,1/45);
+  for(let i=0;i<N;i++){
+    const b=bodies[i];
+    b.vel.x=(b.vel.x+ax[i]*sdt)*BODY_DAMP;
+    b.vel.y=(b.vel.y+ay[i]*sdt)*BODY_DAMP;
+    b.vel.z=(b.vel.z+az[i]*sdt)*BODY_DAMP;
+    b.pos.x+=b.vel.x*sdt; b.pos.y+=b.vel.y*sdt; b.pos.z+=b.vel.z*sdt;
+    const r=b.pos.length();
+    if(r>BODY_MAXR){
+      const inv=1/(r||1);
+      const nx=b.pos.x*inv, ny=b.pos.y*inv, nz=b.pos.z*inv;
+      b.pos.set(nx*BODY_MAXR, ny*BODY_MAXR, nz*BODY_MAXR);
+      const vd=b.vel.x*nx+b.vel.y*ny+b.vel.z*nz;        // reflect outward velocity inward
+      if(vd>0){ b.vel.x-=2*vd*nx; b.vel.y-=2*vd*ny; b.vel.z-=2*vd*nz; }
+      b.vel.multiplyScalar(0.6);
+    }
+  }
+}
+
+function pushBodiesToUniform(){
+  const N = Math.min(bodies.length, MAX_BODIES);
+  for(let i=0;i<MAX_BODIES;i++){
+    if(i<N){ const b=bodies[i]; bodyUniformArr[i].set(b.pos.x,b.pos.y,b.pos.z,b.mass); bodyVelArr[i].set(b.vel.x,b.vel.y,b.vel.z); }
+    else    { bodyUniformArr[i].set(0,0,0,0); bodyVelArr[i].set(0,0,0); }
+  }
+  if(simU){ simU.uBodies.value=bodyUniformArr; simU.uBodyVel.value=bodyVelArr; simU.uNumBodies.value=N; }
+}
+
+function buildBodyPoints(){
+  if(bodyPoints){ scene.remove(bodyPoints); bodyGeom.dispose(); bodyMat.dispose(); }
+  bodyGeom = new THREE.BufferGeometry();
+  const pos = new Float32Array(MAX_BODIES*3);
+  const mass = new Float32Array(MAX_BODIES);
+  bodyGeom.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  bodyGeom.setAttribute('aMass', new THREE.BufferAttribute(mass,1));
+  bodyMat = new THREE.ShaderMaterial({
+    uniforms:{
+      uPointSize:{value:6.0}, uPixelRatio:{value:renderer.getPixelRatio()}, uExposure:{value:0.9},
+    },
+    vertexShader: BODY_VERT, fragmentShader: BODY_FRAG,
+    transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
+  });
+  bodyPoints = new THREE.Points(bodyGeom, bodyMat);
+  bodyPoints.frustumCulled = false;
+  scene.add(bodyPoints);
+  updateBodyGeom();
+}
+
+function updateBodyGeom(){
+  if(!bodyGeom) return;
+  const pos = bodyGeom.attributes.position.array;
+  const mass = bodyGeom.attributes.aMass.array;
+  const N = Math.min(bodies.length, MAX_BODIES);
+  for(let i=0;i<MAX_BODIES;i++){
+    if(i<N){ const b=bodies[i]; pos[i*3]=b.pos.x; pos[i*3+1]=b.pos.y; pos[i*3+2]=b.pos.z; mass[i]=b.mass; }
+    else   { pos[i*3]=0; pos[i*3+1]=0; pos[i*3+2]=0; mass[i]=0; } // mass 0 -> sprite discards (alpha→0)
+  }
+  bodyGeom.setDrawRange(0, N);
+  bodyGeom.attributes.position.needsUpdate = true;
+  bodyGeom.attributes.aMass.needsUpdate = true;
+}
+
+/* ─────────────────────────  GPGPU init / rebuild  ───────────────────────── */
+function makeSimUniforms(){
+  return {
+    uTime:{value:0}, uDelta:{value:0},
+    uG:{value:ui.grav}, uSoft:{value:9.0}, uMaxSpeed:{value:120.0}, uDiskK:{value:0.5},
+    uBound:{value:BOUND}, uGalaxyR:{value:(ui.encounter==='flyby')?21.0:GALAXY_R}, uKillRadius:{value:KILL}, uLifeRate:{value:0.04},
+    uNumBodies:{value:Math.min(bodies.length,MAX_BODIES)},
+    uBodies:{value:bodyUniformArr}, uBodyVel:{value:bodyVelArr},
+    uMouseOrigin:{value:new THREE.Vector3()}, uMouseDir:{value:new THREE.Vector3(0,0,-1)},
+    uStirStrength:{value:0.0}, uStirRadius:{value:46.0}, uStirRadial:{value:0.0},
+  };
+}
+
+function buildSim(size){
+  texSize = size;
+  if(gpu){ gpu.dispose && gpu.dispose(); }
+  gpu = new GPUComputationRenderer(size, size, renderer);
+  if(renderer.capabilities.isWebGL2 === false){ /* r184 is WebGL2-only */ }
+
+  const dtPos = gpu.createTexture();
+  const dtVel = gpu.createTexture();
+  seedTextures(dtPos, dtVel, size);
+
+  velVar = gpu.addVariable('textureVelocity', VELOCITY_FRAG, dtVel);
+  posVar = gpu.addVariable('texturePosition', POSITION_FRAG, dtPos);
+  gpu.setVariableDependencies(velVar, [posVar, velVar]);
+  gpu.setVariableDependencies(posVar, [posVar, velVar]);
+
+  simU = makeSimUniforms();
+  // share the SAME uniform objects across both materials -> one update point
+  for(const k in simU){ velVar.material.uniforms[k] = simU[k]; }
+  for(const k of ['uTime','uDelta','uKillRadius','uLifeRate','uBound','uGalaxyR','uNumBodies','uBodies']){
+    posVar.material.uniforms[k] = simU[k];
+  }
+
+  let err = gpu.init();
+  if(err !== null){
+    // float-render unsupported -> try half float
+    gpu.setDataType && gpu.setDataType(THREE.HalfFloatType);
+    err = gpu.init();
+    if(err !== null){ showBanner('This GPU can’t render to float textures, so the particle engine can’t run.<br>'+err); throw new Error(err); }
+  }
+  buildPoints(size);
+  pushBodiesToUniform();
+  document.getElementById('push').textContent = '▲ Push it · '+PRESETS[presetIdx].label;
+}
+
+function seedTextures(dtPos, dtVel, size){
+  const p = dtPos.image.data, v = dtVel.image.data;
+  for(let i=0;i<size*size;i++){
+    const k=i*4;
+    // initial outer spherical shell; tracers fall in toward the suns over the first seconds
+    const u=Math.random()*2-1, th=Math.random()*Math.PI*2, rr=BOUND*(0.55+0.45*Math.random());
+    const s=Math.sqrt(1-u*u);
+    const px=Math.cos(th)*s*rr, py=u*rr, pz=Math.sin(th)*s*rr;
+    p[k  ]=px; p[k+1]=py; p[k+2]=pz;
+    p[k+3]=0.55+0.45*Math.random();             // life
+    // small tangential velocity about Y -> initial swirl
+    const tx=-pz, tz=px; const tl=Math.hypot(tx,tz)+1e-3;
+    v[k  ]=(tx/tl)*2.2; v[k+1]=0; v[k+2]=(tz/tl)*2.2;
+    v[k+3]=Math.random()*5;                      // age
+  }
+}
+
+function buildPoints(size){
+  const n = size*size;
+  if(points){ scene.remove(points); points.geometry.dispose(); points.material.dispose(); }
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(n*2*3);   // 2 verts/grain (head + tail); real pos from texture
+  const refs = new Float32Array(n*2*2);
+  const ends = new Float32Array(n*2);
+  for(let i=0;i<n;i++){
+    const ux=(i%size)/size, uy=Math.floor(i/size)/size;
+    refs[i*4]=ux; refs[i*4+1]=uy;       // head vertex (2i)
+    refs[i*4+2]=ux; refs[i*4+3]=uy;     // tail vertex (2i+1)
+    ends[i*2]=0.0; ends[i*2+1]=1.0;
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  geom.setAttribute('reference', new THREE.BufferAttribute(refs,2));
+  geom.setAttribute('aEnd', new THREE.BufferAttribute(ends,1));
+  geomRef = geom;
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{
+      texturePosition:{value:null}, textureVelocity:{value:null},
+      uPixelRatio:{value:renderer.getPixelRatio()}, uTrail:{value:2.4},
+      uSpeedScale:{value:40.0}, uExposure:{value:0.04}, uFogDensity:{value:0.0019}, uWarm:{value:0.0},
+    },
+    vertexShader: POINTS_VERT, fragmentShader: POINTS_FRAG,
+    transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
+  });
+  points = new THREE.LineSegments(geom, mat);   // GL_LINES: each grain is one velocity streak
+  points.frustumCulled = false;
+  scene.add(points);
+}
+
+/* ─────────────────────────  post-processing  ───────────────────────── */
+function buildComposer(){
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w, s.h), ui.glow, 0.62, 0.52); }
+  composer.addPass(bloomPass);
+  afterPass = new AfterimagePass(0.90);   // longer comet-streaks -> the tidal tails trace out as light
+  afterPass.enabled = ui.trails;
+  composer.addPass(afterPass);
+  composer.addPass(new OutputPass());
+  sizeComposer();
+}
+function sizeComposer(){
+  const s=stageSize();
+  composer.setSize(s.w,s.h);
+  const br = (texSize>=1448)?0.5:1.0;             // halve bloom res at high counts
+  bloomPass.setSize(s.w*br, s.h*br);
+}
+
+/* ─────────────────────────  pointer interaction  ───────────────────────── */
+const ndc = new THREE.Vector2();
+let stirTarget = 0, lastInput = performance.now(), pointerDown = false, pointerBtn = 0;
+let downX = 0, downY = 0, dragged = false;
+function setRayFromEvent(e){
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  ndc.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  const o = camera.getWorldPosition(new THREE.Vector3());
+  const far = new THREE.Vector3(ndc.x, ndc.y, 0.5).unproject(camera);
+  simU.uMouseOrigin.value.copy(o);
+  simU.uMouseDir.value.copy(far.sub(o).normalize());
+}
+// drop a body on the view-plane through the origin at the unprojected cursor
+function dropBodyAtEvent(e){
+  if(bodies.length>=MAX_BODIES) return;
+  const rect = canvas.getBoundingClientRect();
+  const nx = ((e.clientX-rect.left)/rect.width)*2-1;
+  const ny = -((e.clientY-rect.top)/rect.height)*2+1;
+  const o = camera.getWorldPosition(new THREE.Vector3());
+  const dir = new THREE.Vector3(nx, ny, 0.5).unproject(camera).sub(o).normalize();
+  // intersect ray with the plane through origin facing the camera
+  const planeN = camera.getWorldDirection(new THREE.Vector3()).negate();
+  const denom = dir.dot(planeN);
+  let p;
+  if(Math.abs(denom)>1e-4){
+    const t = (new THREE.Vector3().sub(o)).dot(planeN)/denom;   // (0 - o)·n / (dir·n)
+    p = (t>0) ? o.clone().add(dir.multiplyScalar(t)) : o.clone().add(dir.multiplyScalar(220));
+  } else {
+    p = o.clone().add(dir.multiplyScalar(220));
+  }
+  const r = p.length();
+  if(r>BODY_MAXR) p.multiplyScalar(BODY_MAXR/r);
+  bodies.push({ pos:p, vel:new THREE.Vector3((Math.random()-0.5)*0.4,(Math.random()-0.5)*0.4,(Math.random()-0.5)*0.4), mass:1.0+1.6*Math.random() });
+  ui.suns = bodies.length;
+  document.getElementById('s_suns').value = bodies.length;
+  buildBodyPoints();
+  pushBodiesToUniform();
+}
+canvas.addEventListener('pointermove', e=>{
+  setRayFromEvent(e);
+  if(pointerDown && (Math.abs(e.clientX-downX)>4||Math.abs(e.clientY-downY)>4)) dragged=true;
+  stirTarget = pointerDown ? 220 : 110;
+  simU.uStirRadial.value = pointerDown ? (pointerBtn===2?2.0:0.0) : 0.0;
+  lastInput = performance.now();
+});
+canvas.addEventListener('pointerdown', e=>{ pointerDown=true; pointerBtn=e.button; dragged=false; downX=e.clientX; downY=e.clientY; setRayFromEvent(e); stirTarget=220; lastInput=performance.now(); });
+window.addEventListener('pointerup', e=>{
+  if(pointerDown && !dragged && e.button===0 && e.shiftKey){ try{ dropBodyAtEvent(e); }catch(_){} }
+  pointerDown=false;
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+['pointerdown','wheel','keydown'].forEach(ev=>window.addEventListener(ev, ()=>lastInput=performance.now(), {passive:true}));
+
+let paused = false;
+window.addEventListener('keydown', e=>{ if(e.code==='Space'){ paused=!paused; e.preventDefault(); } });
+
+/* ─────────────────────────  controls / UI  ───────────────────────── */
+document.getElementById('reseed').addEventListener('click', reseedAll);
+document.getElementById('encounter').addEventListener('click', e=>{
+  ui.encounter = (ui.encounter==='flyby') ? 'merge' : 'flyby';
+  e.target.textContent = 'encounter: '+ui.encounter;
+  document.getElementById('modechip').textContent = (ui.encounter==='flyby') ? 'FLYBY' : 'MERGER';
+  collisionAge = 0; reseedAll();
+});
+document.getElementById('s_grav').addEventListener('input', e=>{ ui.grav=(+e.target.value); simU.uG.value=ui.grav; });
+document.getElementById('s_suns').addEventListener('input', e=>{
+  ui.suns=(+e.target.value);
+  seedBodies(ui.suns);
+  buildBodyPoints();
+  pushBodiesToUniform();
+});
+document.getElementById('s_drift').addEventListener('input', e=>{ ui.drift=(+e.target.value)/100; });
+document.getElementById('s_glow').addEventListener('input',  e=>{ ui.glow=(+e.target.value)/100; bloomPass.strength=ui.glow; });
+document.getElementById('trails').addEventListener('click', e=>{
+  ui.trails=!ui.trails; e.target.classList.toggle('on',ui.trails); e.target.textContent='trails: '+(ui.trails?'on':'off');
+  afterPass.enabled = ui.trails;
+});
+document.getElementById('push').addEventListener('click', ()=>{
+  presetIdx = (presetIdx+1)%PRESETS.length;
+  ceilingIdx = presetIdx;
+  rebuildAt(PRESETS[presetIdx].tex);
+});
+document.getElementById('save').addEventListener('click', ()=>{
+  composer.render();
+  const a=document.createElement('a');
+  a.download='genesis.png';
+  a.href=renderer.domElement.toDataURL('image/png'); a.click();
+});
+
+function reseedAll(){
+  // re-scatter the suns AND force every tracer to respawn over the next couple of frames
+  seedBodies(ui.suns);
+  buildBodyPoints();
+  pushBodiesToUniform();
+  simU.uTime.value += 137.5;         // decorrelate the seed hash
+  forceReseedPulse = 2;              // frames where lifeRate is huge -> all particles expire & respawn
+}
+let forceReseedPulse = 0;
+
+function rebuildAt(size){
+  buildSim(size);
+  buildComposer();
+}
+
+/* ─────────────────────────  caption  ───────────────────────── */
+function updateCaption(){
+  document.getElementById('caption').innerHTML =
+    `A scatter of bright <b>suns</b> obeys <span class="live">Newtonian gravitation</span> — every body pulls every other by ` +
+    `<b>a = ΣⱼG·mⱼ·(pⱼ−pᵢ)/|pⱼ−pᵢ|³</b> — while a million <b>massless tracers</b> simply fall through their moving potential, ` +
+    `revealing it. Where the dust is whipped fast near a sun it glows hot gold-white; in the calm outskirts it cools to emerald. ` +
+    `The <span class="live">tidal streams</span> and accretion you see are <b>structure formation</b> in miniature — the same gravitational ` +
+    `instability that grew galaxies and clusters from a near-uniform haze of dust.`;
+}
+
+/* ─────────────────────────  perf governor  ───────────────────────── */
+let emaMs = 16.7, drawFrac = 1.0, ceilingIdx = presetIdx, lastScale = performance.now();
+let collisionAge = 0;              // loops the encounter so it keeps replaying the dramatic approach
+function governor(dtMs){
+  dtMs = Math.min(dtMs, 100);          // ignore tab-switch / stall spikes, not a perf signal
+  emaMs = emaMs*0.92 + dtMs*0.08;
+  const fps = 1000/emaMs;
+  const now = performance.now();
+  if(fps < 48 && now-lastScale > 700){
+    if(drawFrac > 0.45){ drawFrac = Math.max(0.45, drawFrac-0.12); lastScale=now; }
+    else if(renderer.getPixelRatio() > 1.0){ renderer.setPixelRatio(Math.max(1.0, renderer.getPixelRatio()-0.25)); onResize(); lastScale=now; }
+  } else if(fps > 58 && now-lastScale > 2600){
+    if(renderer.getPixelRatio() < Math.min(window.devicePixelRatio||1,2)){ renderer.setPixelRatio(Math.min(Math.min(window.devicePixelRatio||1,2), renderer.getPixelRatio()+0.25)); onResize(); lastScale=now; }
+    else if(drawFrac < 1.0){ drawFrac = Math.min(1.0, drawFrac+0.08); lastScale=now; }
+  }
+  const n = texSize*texSize;
+  geomRef.setDrawRange(0, 2*Math.floor(n*drawFrac));   // 2 verts per grain (line segment)
+}
+
+/* ─────────────────────────  resize  ───────────────────────── */
+function onResize(){
+  const s=stageSize();
+  renderer.setSize(s.w,s.h,false);
+  camera.aspect=s.w/s.h; camera.updateProjectionMatrix();
+  if(composer) sizeComposer();
+  if(points) points.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+  if(bodyMat) bodyMat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+}
+window.addEventListener('resize', onResize);
+if(window.ResizeObserver){ new ResizeObserver(()=>onResize()).observe(stage); }
+
+/* ─────────────────────────  main loop  ───────────────────────── */
+function animate(){
+  requestAnimationFrame(animate);
+  const dtMs = clock.getDelta()*1000;
+  const dt = Math.min(dtMs/1000, 1/45);
+  frame(dt, dtMs);
+}
+function frame(dt, dtMs){
+  // stir decay
+  simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25;
+  stirTarget *= 0.86;
+
+  // idle auto-orbit after 6s
+  controls.autoRotate = (performance.now()-lastInput > 6000);
+  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
+
+  if(!paused){
+    // reseed pulse (Reseed button)
+    if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.05; }
+
+    // replay the encounter so it keeps returning to the dramatic approach (flyby is a quicker single pass)
+    collisionAge += dt*(0.4+1.2*ui.drift);
+    if(collisionAge > (ui.encounter==='flyby'?34.0:24.0)){ collisionAge = 0; reseedAll(); }
+
+    // advance the CPU bodies, then hand them to the GPU + the visible sun sprites
+    stepBodies(dt*(0.4+1.2*ui.drift));
+    pushBodiesToUniform();
+    updateBodyGeom();
+
+    simU.uTime.value += dt*(0.4+1.2*ui.drift); // global time scaling with drift
+    simU.uDelta.value = dt*(0.4+1.2*ui.drift);
+    gpu.compute();
+  }
+
+  // feed current sim textures to the draw material
+  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
+  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+
+  controls.update();
+  composer.render();
+  governor(dtMs);
+
+  // HUD
+  if((animate._f=(animate._f||0)+1)%12===0){
+    const fps = Math.round(1000/emaMs);
+    const drawn = (texSize*texSize*drawFrac/1e6).toFixed(2);
+    document.getElementById('hud').innerHTML = `<b>${drawn}M</b> dust · <b>${Math.min(bodies.length,MAX_BODIES)}</b> galaxies · <b>${fps}</b> fps · ${texSize}²`;
+  }
+}
+
+function showBanner(html){ banner.style.display='flex'; banner.innerHTML=html; }
+
+/* ─────────────────────────  boot  ───────────────────────── */
+try{
+  seedBodies(ui.suns);
+  buildSim(PRESETS[presetIdx].tex);
+  buildBodyPoints();
+  buildComposer();
+  updateCaption();
+  onResize();
+  // debug/verification hook: step the sim+render N frames even when the tab is hidden (rAF is paused)
+  window.__sim = { frame, step:(n=1,dt=1/60)=>{ for(let i=0;i<n;i++) frame(dt, dt*1000); }, reseedAll,
+                   fit:(w,h)=>{ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); sizeComposer(); points.material.uniforms.uPixelRatio.value=renderer.getPixelRatio(); if(bodyMat) bodyMat.uniforms.uPixelRatio.value=renderer.getPixelRatio(); },
+                   set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; },
+                   get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), suns:Math.min(bodies.length,MAX_BODIES)}; } };
+  animate();
+}catch(err){
+  console.error(err);
+  if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the particle engine.<br><small>'+(err&&err.message||err)+'</small>');
+}
+</script>
+</body>
+</html>

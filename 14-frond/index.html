@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frond — Lindenmayer System</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:94vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.val{color:var(--gold2);min-width:42px;text-align:right}
+.caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 14 · Lindenmayer System</div>
+<div class="badge">Opus 4.8</div>
+<h1>Frond</h1>
+<p class="sub">A single growth rule, rewritten into itself, unfurls a whole plant.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Regrow</button>
+  <div class="ctl">angle <input id="ang" type="range" min="12" max="34" step="0.5" value="23"><span class="val" id="angv">23°</span></div>
+  <div class="ctl">depth <input id="depth" type="range" min="4" max="6" step="1" value="5"><span class="val" id="depthv">5</span></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">An <b>L-system</b> (Lindenmayer, 1968) starts from one symbol and rewrites it with a fixed production
+rule — here <i>X → F+[[X]−X]−F[−FX]+X</i> — a handful of times. A <b>turtle</b> then reads the resulting string as
+draw / turn / branch commands. Self-similar branching and leaflets emerge from pure recursion: the grammar of how
+real ferns and compound leaves grow.</p>
+<script>
+const canvas=document.getElementById('c');
+const W=760,H=900;
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+const ctx=fit();
+
+const RULES={X:'F+[[X]-X]-F[-FX]+X', F:'FF'};
+let angleDeg=23, depth=5;
+let segs=[], leaves=[], maxDepth=1, shown=0;
+
+function expand(iter){let s='X';for(let i=0;i<iter;i++){let r='';for(let k=0;k<s.length;k++){const c=s[k];r+=RULES[c]||c;}s=r;}return s;}
+
+function build(){
+  const s=expand(depth);
+  const base=angleDeg*Math.PI/180;
+  let x=0,y=0,dir=-Math.PI/2,d=0;
+  const stack=[]; segs=[]; leaves=[]; maxDepth=1;
+  let minx=0,maxx=0,miny=0,maxy=0;
+  for(let k=0;k<s.length;k++){const c=s[k];
+    if(c==='F'){
+      const jit=1+(Math.random()-0.5)*0.06;          // gentle length variation
+      const nx=x+Math.cos(dir)*jit, ny=y+Math.sin(dir)*jit;
+      segs.push({x1:x,y1:y,x2:nx,y2:ny,d});
+      x=nx;y=ny;
+      if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
+    } else if(c==='+'){ dir+=base*(1+(Math.random()-0.5)*0.28); }
+    else if(c==='-'){ dir-=base*(1+(Math.random()-0.5)*0.28); }
+    else if(c==='['){ stack.push({x,y,dir,d}); d++; if(d>maxDepth)maxDepth=d; }
+    else if(c===']'){ leaves.push({x,y,dir,d}); const st=stack.pop(); x=st.x;y=st.y;dir=st.dir;d=st.d; }
+  }
+  // fit into the canvas (portrait, rooted near the bottom)
+  const mx=70, mTop=70, mBot=46;
+  const sx=(W-2*mx)/Math.max(1e-3,maxx-minx);
+  const sy=(H-mTop-mBot)/Math.max(1e-3,maxy-miny);
+  const sc=Math.min(sx,sy);
+  const ox=W/2-(minx+maxx)/2*sc;
+  const oy=(H-mBot)-maxy*sc;
+  const tf=p=>{p.X1=p.x1*sc+ox;p.Y1=p.y1*sc+oy;p.X2=p.x2*sc+ox;p.Y2=p.y2*sc+oy;};
+  for(const g of segs)tf(g);
+  for(const lf of leaves){lf.X=lf.x*sc+ox;lf.Y=lf.y*sc+oy;}
+  shown=0;
+}
+
+function mix(a,b,t){return'rgb('+((a[0]+(b[0]-a[0])*t)|0)+','+((a[1]+(b[1]-a[1])*t)|0)+','+((a[2]+(b[2]-a[2])*t)|0)+')';}
+const BASE=[214,166,72], TIP=[150,206,140];
+
+function leaflet(lf){
+  const t=lf.d/maxDepth, size=2.2+(1-t)*3.0;
+  ctx.save();ctx.translate(lf.X,lf.Y);ctx.rotate(lf.dir+Math.PI/2);
+  ctx.globalCompositeOperation='lighter';
+  ctx.fillStyle='rgba(120,200,140,0.5)';
+  ctx.beginPath();ctx.moveTo(0,-size*2);
+  ctx.quadraticCurveTo(size,0,0,size);ctx.quadraticCurveTo(-size,0,0,-size*2);ctx.fill();
+  ctx.globalCompositeOperation='source-over';ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0c1612');g.addColorStop(1,'#070d0a');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.lineCap='round';
+  const n=Math.min(shown|0,segs.length);
+  // glow underlay
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<n;i++){const s=segs[i];ctx.strokeStyle='rgba(232,196,94,0.05)';
+    ctx.lineWidth=(4-s.d*0.55>0?4-s.d*0.55:0.7)*2.2;
+    ctx.beginPath();ctx.moveTo(s.X1,s.Y1);ctx.lineTo(s.X2,s.Y2);ctx.stroke();}
+  ctx.globalCompositeOperation='source-over';
+  for(let i=0;i<n;i++){const s=segs[i];const t=s.d/maxDepth;
+    ctx.strokeStyle=mix(BASE,TIP,Math.pow(t,0.8));
+    ctx.lineWidth=Math.max(0.7,4-s.d*0.55);
+    ctx.beginPath();ctx.moveTo(s.X1,s.Y1);ctx.lineTo(s.X2,s.Y2);ctx.stroke();}
+  // leaflets appear only once their branch has been drawn
+  if(n>=segs.length){for(const lf of leaves)leaflet(lf);}
+}
+
+let raf;
+function tick(){ if(shown<segs.length){ shown+=Math.max(8,segs.length/90); } draw(); }
+function loop(){ tick(); raf=requestAnimationFrame(loop); }
+function start(){ cancelAnimationFrame(raf); build(); loop(); }
+
+const angEl=document.getElementById('ang'),angv=document.getElementById('angv');
+const depthEl=document.getElementById('depth'),depthv=document.getElementById('depthv');
+angEl.oninput=()=>{angleDeg=+angEl.value;angv.textContent=angleDeg+'°';};
+depthEl.oninput=()=>{depth=+depthEl.value;depthv.textContent=depth;};
+document.getElementById('regen').onclick=start;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='frond.png';a.href=canvas.toDataURL('image/png');a.click();};
+
+window.__sim={ step(k){for(let i=0;i<(k||1);i++)tick();},
+  info(){return{segments:segs.length,shown:shown|0,leaves:leaves.length,maxDepth:maxDepth};} };
+
+start();
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phyllotaxis Bloom — Golden Angle</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:92vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:150px}
+.val{color:var(--gold2);min-width:58px;text-align:right}
+.caption{max-width:690px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 05 · Phyllotaxis</div>
+<div class="badge fable">Fable 5</div>
+<h1>Phyllotaxis Bloom</h1>
+<p class="sub">One angle decides whether a plant packs tight or wastes space.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Rebloom</button>
+  <div class="ctl">divergence <input id="ang" type="range" min="136.0" max="139.0" step="0.01" value="137.50"><span class="val" id="angv">137.50°</span></div>
+  <button id="golden">↺ Golden 137.5°</button>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">Each new primordium is placed one fixed turn from the last and pushed outward by &radic;n
+(Vogel's model). At the <b>golden angle 137.5°</b> — derived from the irrational golden ratio — units never align into
+spokes, so they pack with no gaps and Fibonacci spiral arms appear. Nudge the slider a fraction of a degree and the
+packing collapses: the efficiency principle behind <b>leaf arrangement</b> and seed heads.</p>
+<script>
+const canvas=document.getElementById('c');
+const W=780,H=780;
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.scale(dpr,dpr);return x;}
+const ctx=fit();
+
+let angle=137.5*Math.PI/180, count=0, MAX=1400, c=9.6;
+const TAU=Math.PI*2;
+
+function mix(a,b,t){return'rgb('+((a[0]+(b[0]-a[0])*t)|0)+','+((a[1]+(b[1]-a[1])*t)|0)+','+((a[2]+(b[2]-a[2])*t)|0)+')';}
+const CORE=[246,228,150], MID=[226,170,70], EDGE=[47,150,105];
+
+function leafUnit(x,y,rot,size,col,glow){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot);
+  ctx.beginPath();ctx.moveTo(0,-size);
+  ctx.quadraticCurveTo(size*0.62,-size*0.15,0,size);
+  ctx.quadraticCurveTo(-size*0.62,-size*0.15,0,-size);
+  if(glow){ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(232,196,94,0.05)';
+    ctx.fill();ctx.globalCompositeOperation='source-over';}
+  ctx.fillStyle=col;ctx.fill();
+  ctx.strokeStyle='rgba(10,20,15,0.55)';ctx.lineWidth=size*0.10;
+  ctx.beginPath();ctx.moveTo(0,-size*0.9);ctx.lineTo(0,size*0.9);ctx.stroke();
+  ctx.restore();
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createRadialGradient(W/2,H/2,10,W/2,H/2,W*0.6);
+  g.addColorStop(0,'#0f1a15');g.addColorStop(1,'#070d0a');ctx.fillStyle=g;
+  ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2;
+  for(let i=0;i<count;i++){
+    const a=i*angle, r=c*Math.sqrt(i);
+    const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
+    const tr=i/MAX;                                   // 0 center -> 1 edge
+    const size=3.0+tr*4.6;                            // near-uniform floret, fits Vogel spacing
+    let col;
+    if(tr<0.5)col=mix(CORE,MID,tr/0.5); else col=mix(MID,EDGE,(tr-0.5)/0.5);
+    leafUnit(x,y,a+Math.PI/2,size,col,i>count-90);
+  }
+}
+
+let raf;
+function loop(){if(count<MAX){count+=8;render();raf=requestAnimationFrame(loop);}else render();}
+function start(){cancelAnimationFrame(raf);count=0;loop();}
+
+const ang=document.getElementById('ang'),angv=document.getElementById('angv');
+function setAngle(v){angle=v*Math.PI/180;angv.textContent=v.toFixed(2)+'°';ang.value=v;render();}
+ang.oninput=()=>setAngle(+ang.value);
+document.getElementById('golden').onclick=()=>{setAngle(137.50);start();};
+document.getElementById('regen').onclick=start;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='phyllotaxis-bloom.png';a.href=canvas.toDataURL('image/png');a.click();};
+start();
+</script>
+</body>
+</html>

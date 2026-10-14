@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Murmuration — Reynolds Boids</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);
+  padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+h1{font-size:30px;margin:9px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:94vw;height:auto;cursor:crosshair}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
+button,select{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover,select:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.val{color:var(--gold2);min-width:42px;text-align:right}
+.caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 13 · Vol. III · Emergence</div>
+<div class="badge">Opus 4.8 · ultracode</div>
+<h1>Murmuration</h1>
+<p class="sub">Ten thousand wings, no conductor — only three small rules and a hawk in the dusk.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Regenerate</button>
+  <div class="ctl">birds <input id="count" type="range" min="400" max="5000" step="100" value="2500"><span class="val" id="countv">2500</span></div>
+  <div class="ctl">cohesion <input id="cohesion" type="range" min="0" max="2.4" step="0.05" value="1.0"><span class="val" id="cohesionv">1.00</span></div>
+  <div class="ctl">alignment <input id="align" type="range" min="0" max="2.4" step="0.05" value="1.2"><span class="val" id="alignv">1.20</span></div>
+  <button id="hawk">✕ Hawk: On</button>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">Each bird sees only neighbours within a small radius and obeys three Reynolds rules —
+<b>separation</b> (avoid crowding), <b>alignment</b> (match headings), <b>cohesion</b> (drift toward the local centre).
+Neighbours are found through a <b>uniform spatial-hash grid</b>, so the flock stays O(n) at thousands of birds.
+A <b>predator</b> (move the mouse over the canvas, or let it wander) triggers fleeing — the rolling flash-waves of a
+real <b>starling murmuration</b> emerge with no leader at all.</p>
+<script>
+const canvas=document.getElementById('c');
+const W=820,H=620;
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+const ctx=fit();
+
+/* ───────── tuning ───────── */
+const PERC=34;            // perception radius (px) — also the spatial-hash cell size
+const PERC2=PERC*PERC;
+const SEP_R=16, SEP_R2=SEP_R*SEP_R;
+const MAXSPEED=3.1, MINSPEED=1.6, MAXFORCE=0.075;
+const FEAR_R=120, FEAR_R2=FEAR_R*FEAR_R;
+const W_SEP=1.7;          // base weights (alignment & cohesion scaled by sliders)
+let   W_ALI=1.2, W_COH=1.0;
+const MARGIN=70, TURN=0.22;   // soft wrap-back from edges
+
+/* ───────── flock state (struct-of-arrays) ───────── */
+let N=2500;
+let px,py,vx,vy,bz;        // pos, vel, depth z in [0,1]
+function alloc(n){
+  px=new Float32Array(n); py=new Float32Array(n);
+  vx=new Float32Array(n); vy=new Float32Array(n); bz=new Float32Array(n);
+}
+function seed(n){
+  alloc(n);
+  for(let i=0;i<n;i++){
+    px[i]=Math.random()*W; py[i]=Math.random()*H;
+    const a=Math.random()*Math.PI*2, s=MINSPEED+Math.random()*(MAXSPEED-MINSPEED);
+    vx[i]=Math.cos(a)*s; vy[i]=Math.sin(a)*s;
+    bz[i]=Math.random();
+  }
+  N=n; buildGridDims();
+}
+
+/* ───────── uniform spatial-hash grid ─────────
+   cell size = perception radius, so neighbours live in the 3×3 cell block. */
+let GCOLS,GROWS,GCELLS, cellHead,cellNext;
+function buildGridDims(){
+  GCOLS=Math.max(1,Math.ceil(W/PERC));
+  GROWS=Math.max(1,Math.ceil(H/PERC));
+  GCELLS=GCOLS*GROWS;
+  cellHead=new Int32Array(GCELLS);
+  cellNext=new Int32Array(N);
+}
+function buildGrid(){
+  cellHead.fill(-1);
+  for(let i=0;i<N;i++){
+    let cx=(px[i]/PERC)|0, cy=(py[i]/PERC)|0;
+    if(cx<0)cx=0;else if(cx>=GCOLS)cx=GCOLS-1;
+    if(cy<0)cy=0;else if(cy>=GROWS)cy=GROWS-1;
+    const c=cy*GCOLS+cx;
+    cellNext[i]=cellHead[c]; cellHead[c]=i;   // singly-linked bucket
+  }
+}
+
+/* ───────── predator (hawk) ───────── */
+let hawkOn=true;
+const hawk={x:W*0.5,y:H*0.5,vx:0,vy:0, wx:W*0.5,wy:H*0.5,wt:0};
+let mouseIn=false, mouseX=0, mouseY=0;
+
+function stepHawk(){
+  if(!hawkOn) return;
+  let tx,ty;
+  if(mouseIn){ tx=mouseX; ty=mouseY; }
+  else{
+    // autonomous wander toward a slowly retargeted point
+    hawk.wt--;
+    if(hawk.wt<=0){ hawk.wx=W*(0.2+Math.random()*0.6); hawk.wy=H*(0.2+Math.random()*0.6); hawk.wt=90+Math.random()*120; }
+    tx=hawk.wx; ty=hawk.wy;
+  }
+  let dx=tx-hawk.x, dy=ty-hawk.y, d=Math.hypot(dx,dy);
+  if(d>0.001){ dx/=d; dy/=d; }
+  const acc=mouseIn?0.55:0.30;
+  hawk.vx+=dx*acc; hawk.vy+=dy*acc;
+  const sp=Math.hypot(hawk.vx,hawk.vy), HMAX=4.4;
+  if(sp>HMAX){ hawk.vx=hawk.vx/sp*HMAX; hawk.vy=hawk.vy/sp*HMAX; }
+  hawk.vx*=0.94; hawk.vy*=0.94;
+  hawk.x+=hawk.vx; hawk.y+=hawk.vy;
+}
+
+/* ───────── one simulation tick ───────── */
+function simulate(){
+  buildGrid();
+  for(let i=0;i<N;i++){
+    const x=px[i], y=py[i];
+    let cx=(x/PERC)|0, cy=(y/PERC)|0;
+    if(cx<0)cx=0;else if(cx>=GCOLS)cx=GCOLS-1;
+    if(cy<0)cy=0;else if(cy>=GROWS)cy=GROWS-1;
+
+    // accumulators
+    let sepX=0,sepY=0, aliX=0,aliY=0, cohX=0,cohY=0, cnt=0;
+
+    // 3×3 neighbourhood from the spatial hash — NO loop over all boids
+    const x0=cx>0?cx-1:0, x1=cx<GCOLS-1?cx+1:GCOLS-1;
+    const y0=cy>0?cy-1:0, y1=cy<GROWS-1?cy+1:GROWS-1;
+    for(let gy=y0;gy<=y1;gy++){
+      const row=gy*GCOLS;
+      for(let gx=x0;gx<=x1;gx++){
+        let j=cellHead[row+gx];
+        while(j!==-1){
+          if(j!==i){
+            const dx=px[j]-x, dy=py[j]-y, d2=dx*dx+dy*dy;
+            if(d2<PERC2 && d2>0){
+              cohX+=px[j]; cohY+=py[j];
+              aliX+=vx[j]; aliY+=vy[j];
+              cnt++;
+              if(d2<SEP_R2){
+                const inv=1/Math.sqrt(d2);   // weight by 1/dist: closer pushes harder
+                sepX-=dx*inv; sepY-=dy*inv;
+              }
+            }
+          }
+          j=cellNext[j];
+        }
+      }
+    }
+
+    let ax=0, ay=0;
+    if(cnt>0){
+      // ALIGNMENT — steer toward neighbours' average heading
+      let mag=Math.hypot(aliX,aliY);
+      if(mag>0){ aliX=aliX/mag*MAXSPEED-vx[i]; aliY=aliY/mag*MAXSPEED-vy[i];
+        const fm=Math.hypot(aliX,aliY); if(fm>MAXFORCE){ aliX=aliX/fm*MAXFORCE; aliY=aliY/fm*MAXFORCE; } }
+      else { aliX=aliY=0; }
+      // COHESION — steer toward local centre of mass
+      cohX=cohX/cnt-x; cohY=cohY/cnt-y;
+      mag=Math.hypot(cohX,cohY);
+      if(mag>0){ cohX=cohX/mag*MAXSPEED-vx[i]; cohY=cohY/mag*MAXSPEED-vy[i];
+        const fm=Math.hypot(cohX,cohY); if(fm>MAXFORCE){ cohX=cohX/fm*MAXFORCE; cohY=cohY/fm*MAXFORCE; } }
+      else { cohX=cohY=0; }
+      ax+=aliX*W_ALI+cohX*W_COH;
+      ay+=aliY*W_ALI+cohY*W_COH;
+    }
+    // SEPARATION
+    let sm=Math.hypot(sepX,sepY);
+    if(sm>0){ sepX=sepX/sm*MAXSPEED-vx[i]; sepY=sepY/sm*MAXSPEED-vy[i];
+      const fm=Math.hypot(sepX,sepY); if(fm>MAXFORCE){ sepX=sepX/fm*MAXFORCE; sepY=sepY/fm*MAXFORCE; }
+      ax+=sepX*W_SEP; ay+=sepY*W_SEP; }
+
+    // PREDATOR — flee (repulsion): force points AWAY from hawk, scaled by closeness
+    if(hawkOn){
+      const dx=x-hawk.x, dy=y-hawk.y, d2=dx*dx+dy*dy;
+      if(d2<FEAR_R2 && d2>0){
+        const inv=1/Math.sqrt(d2);
+        let fx=dx*inv, fy=dy*inv;                 // unit vector pointing away
+        fx=fx*MAXSPEED-vx[i]; fy=fy*MAXSPEED-vy[i];
+        const fm=Math.hypot(fx,fy);
+        const cap=MAXFORCE*9;                      // panic is allowed to overpower flocking
+        if(fm>cap){ fx=fx/fm*cap; fy=fy/fm*cap; }
+        const w=1-Math.sqrt(d2)/FEAR_R;            // strongest when nearest
+        ax+=fx*(2.6+w*5.0); ay+=fy*(2.6+w*5.0);
+      }
+    }
+
+    // edge steering — gentle turn back so the flock stays on stage (no hard wrap snap)
+    if(x<MARGIN)      ax+=TURN;
+    else if(x>W-MARGIN) ax-=TURN;
+    if(y<MARGIN)      ay+=TURN;
+    else if(y>H-MARGIN) ay-=TURN;
+
+    // integrate velocity, clamp to maxSpeed (and a floor so birds never stall)
+    let nvx=vx[i]+ax, nvy=vy[i]+ay;
+    let sp=Math.hypot(nvx,nvy);
+    if(sp>MAXSPEED){ nvx=nvx/sp*MAXSPEED; nvy=nvy/sp*MAXSPEED; }
+    else if(sp<MINSPEED && sp>0){ nvx=nvx/sp*MINSPEED; nvy=nvy/sp*MINSPEED; }
+    vx[i]=nvx; vy[i]=nvy;
+  }
+
+  // position integration + soft wrap (drifting depth gives the cloud volume)
+  for(let i=0;i<N;i++){
+    px[i]+=vx[i]; py[i]+=vy[i];
+    if(px[i]<-20)px[i]=W+20; else if(px[i]>W+20)px[i]=-20;
+    if(py[i]<-20)py[i]=H+20; else if(py[i]>H+20)py[i]=-20;
+    bz[i]+=(Math.random()-0.5)*0.012;             // slow depth drift
+    if(bz[i]<0)bz[i]=0; else if(bz[i]>1)bz[i]=1;
+  }
+  stepHawk();
+}
+
+/* ───────── render ───────── */
+function draw(){
+  // MOTION-BLUR TRAILS — translucent dark wash instead of clearRect
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='rgba(7,11,9,0.22)';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.globalCompositeOperation='lighter';        // additive glow for luminous flock
+  for(let i=0;i<N;i++){
+    const z=bz[i];
+    const sp=Math.hypot(vx[i],vy[i]) || 1;
+    const ux=vx[i]/sp, uy=vy[i]/sp;               // heading unit vector
+    const len=2.0+z*6.5;                          // near birds streak longer
+    const wid=0.7+z*1.7;
+    const x=px[i], y=py[i];
+    // colour: far = dim emerald, near = bright gold
+    const r=Math.round(70+z*(246-70));
+    const g=Math.round(150+z*(220-150));
+    const b=Math.round(105-z*(105-90));
+    const a=0.22+z*0.6;
+    // oriented triangle streak along velocity
+    const tipX=x+ux*len, tipY=y+uy*len;
+    const nx=-uy, ny=ux;
+    ctx.beginPath();
+    ctx.moveTo(tipX,tipY);
+    ctx.lineTo(x-ux*len*0.5+nx*wid, y-uy*len*0.5+ny*wid);
+    ctx.lineTo(x-ux*len*0.5-nx*wid, y-uy*len*0.5-ny*wid);
+    ctx.closePath();
+    ctx.fillStyle='rgba('+r+','+g+','+b+','+a+')';
+    ctx.fill();
+    if(z>0.62){                                   // soft bloom on the nearest birds
+      ctx.fillStyle='rgba(246,230,168,'+((z-0.62)*0.16)+')';
+      ctx.beginPath(); ctx.arc(x,y,len*0.9,0,6.283185); ctx.fill();
+    }
+  }
+
+  // predator — small dark hawk shape with a faint gold rim
+  if(hawkOn){
+    const sp=Math.hypot(hawk.vx,hawk.vy)||1, ux=hawk.vx/sp, uy=hawk.vy/sp, nx=-uy, ny=ux;
+    ctx.globalCompositeOperation='source-over';
+    ctx.beginPath();
+    ctx.moveTo(hawk.x+ux*13, hawk.y+uy*13);
+    ctx.lineTo(hawk.x-ux*9+nx*11, hawk.y-uy*9+ny*11);
+    ctx.lineTo(hawk.x-ux*4, hawk.y-uy*4);
+    ctx.lineTo(hawk.x-ux*9-nx*11, hawk.y-uy*9-ny*11);
+    ctx.closePath();
+    ctx.fillStyle='#05080a'; ctx.fill();
+    ctx.strokeStyle='rgba(232,196,94,0.55)'; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+
+/* ───────── single shared tick (rAF loop AND __sim.step use this) ───────── */
+function tick(){ simulate(); draw(); }
+
+let raf;
+function loop(){ tick(); raf=requestAnimationFrame(loop); }
+function start(){ cancelAnimationFrame(raf); ctx.fillStyle='#070b09'; ctx.fillRect(0,0,W,H); loop(); }
+
+/* ───────── controls ───────── */
+const countEl=document.getElementById('count'), countv=document.getElementById('countv');
+const cohEl=document.getElementById('cohesion'), cohv=document.getElementById('cohesionv');
+const aliEl=document.getElementById('align'), aliv=document.getElementById('alignv');
+const hawkBtn=document.getElementById('hawk');
+
+countEl.oninput=()=>{ countv.textContent=countEl.value; seed(+countEl.value); };  // rebuilds arrays safely
+cohEl.oninput=()=>{ W_COH=+cohEl.value; cohv.textContent=W_COH.toFixed(2); };
+aliEl.oninput=()=>{ W_ALI=+aliEl.value; aliv.textContent=W_ALI.toFixed(2); };
+hawkBtn.onclick=()=>{ hawkOn=!hawkOn; hawkBtn.textContent=(hawkOn?'✕ Hawk: On':'○ Hawk: Off'); };
+document.getElementById('regen').onclick=()=>{ seed(N); start(); };
+document.getElementById('save').onclick=()=>{ const a=document.createElement('a');
+  a.download='murmuration.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
+
+canvas.addEventListener('pointermove',e=>{ const r=canvas.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(W/r.width); mouseY=(e.clientY-r.top)*(H/r.height); mouseIn=true; });
+canvas.addEventListener('pointerleave',()=>{ mouseIn=false; });
+
+/* ───────── headless hook: rAF may be paused in preview, so expose manual stepping ───────── */
+window.__sim={
+  step(n){ for(let i=0;i<(n||1);i++) tick(); },
+  info(){ return {birds:N, cells:GCELLS, hawk:hawkOn,
+    hawkX:Math.round(hawk.x), hawkY:Math.round(hawk.y), wAli:W_ALI, wCoh:W_COH}; }
+};
+
+seed(N);
+start();
+</script>
+</body>
+</html>

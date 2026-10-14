@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Areole — Voronoi Tessellation</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:94vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.val{color:var(--gold2);min-width:42px;text-align:right}
+.caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 16 · Voronoi Tessellation</div>
+<div class="badge">Opus 4.8</div>
+<h1>Areole</h1>
+<p class="sub">The tissue between the smallest veins, settling into the most even packing it can find.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Reseed</button>
+  <div class="ctl">areoles <input id="sites" type="range" min="120" max="460" step="10" value="300"><span class="val" id="sitesv">300</span></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">In a real leaf, the finest veins enclose tiny patches of tissue called <b>areoles</b>. Scatter seed
+points and assign every pixel to its nearest one and you get a <b>Voronoi diagram</b> — cells (areoles) divided by edges
+(the minor vein network), computed fast with the <b>jump-flooding</b> algorithm. <b>Lloyd relaxation</b> then drifts
+each seed to its cell's centroid, and the patchwork settles into the even, space-filling mosaic leaves actually grow.</p>
+<script>
+const canvas=document.getElementById('c');
+const G=256, DISP=760, S=DISP/G;
+canvas.width=DISP;canvas.height=DISP;canvas.style.maxWidth='94vw';
+const ctx=canvas.getContext('2d');
+const off=document.createElement('canvas');off.width=G;off.height=G;
+const octx=off.getContext('2d');const img=octx.createImageData(G,G);
+
+const nearest=new Int32Array(G*G), nextn=new Int32Array(G*G), inLeaf=new Uint8Array(G*G);
+let N=300, sx=new Float32Array(0), sy=new Float32Array(0), scol=[];
+let leaf, frame=0, running=false, raf;
+
+function halfWidth(t){t=Math.min(Math.max(t,0),1);return 0.5*Math.pow(Math.sin(Math.PI*t),0.62)*(1-0.30*t);}
+function buildLeaf(){
+  const cxg=G/2, bot=G-8, top=8, LH=bot-top, LW=G*0.96;
+  for(let y=0;y<G;y++)for(let x=0;x<G;x++){const tv=(bot-y)/LH;let inside=false;
+    if(tv>=0&&tv<=1)inside=Math.abs(x-cxg)<=halfWidth(tv)*LW; inLeaf[y*G+x]=inside?1:0;}
+  return {cxg,bot,top,LH,LW};
+}
+function spawn(n){
+  sx=new Float32Array(n);sy=new Float32Array(n);let i=0,guard=0;
+  while(i<n&&guard<n*300){guard++;const x=Math.random()*G,y=leaf.top+Math.random()*leaf.LH;
+    if(inLeaf[(y|0)*G+(x|0)]){sx[i]=x;sy[i]=y;i++;}}
+  N=i;
+}
+
+function jfa(){
+  nearest.fill(-1);
+  for(let s=0;s<N;s++){const xi=Math.min(G-1,Math.max(0,sx[s]|0)),yi=Math.min(G-1,Math.max(0,sy[s]|0));
+    nearest[yi*G+xi]=s;}
+  let k=128;
+  while(k>=1){
+    for(let y=0;y<G;y++){const row=y*G;
+      for(let x=0;x<G;x++){const p=row+x;let best=nearest[p];
+        let bd=best>=0?(x-sx[best])*(x-sx[best])+(y-sy[best])*(y-sy[best]):1e18;
+        for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){if(!ox&&!oy)continue;
+          const nx=x+ox*k,ny=y+oy*k;if(nx<0||ny<0||nx>=G||ny>=G)continue;
+          const ns=nearest[ny*G+nx];if(ns<0)continue;
+          const dd=(x-sx[ns])*(x-sx[ns])+(y-sy[ns])*(y-sy[ns]);
+          if(dd<bd){bd=dd;best=ns;}}
+        nextn[p]=best;}}
+    nearest.set(nextn); k=k>>1;
+  }
+}
+
+function lloyd(rate){
+  const sumx=new Float32Array(N),sumy=new Float32Array(N),cnt=new Int32Array(N);
+  for(let y=0;y<G;y++){const row=y*G;for(let x=0;x<G;x++){if(!inLeaf[row+x])continue;
+    const s=nearest[row+x];if(s<0)continue;sumx[s]+=x;sumy[s]+=y;cnt[s]++;}}
+  let moved=0;
+  for(let s=0;s<N;s++){if(cnt[s]>0){const mx=sumx[s]/cnt[s],my=sumy[s]/cnt[s];
+    moved+=Math.abs(mx-sx[s])+Math.abs(my-sy[s]);sx[s]+=(mx-sx[s])*rate;sy[s]+=(my-sy[s])*rate;}}
+  return moved/Math.max(1,N);
+}
+
+const GLD=[232,196,94], EM=[47,150,105];
+function siteColors(){scol=new Array(N);const cxg=G/2,cyc=(leaf.top+leaf.bot)/2,maxR=leaf.LH*0.52;
+  for(let s=0;s<N;s++){const t=Math.min(1,Math.hypot(sx[s]-cxg,sy[s]-cyc)/maxR);
+    scol[s]=[GLD[0]+(EM[0]-GLD[0])*t,GLD[1]+(EM[1]-GLD[1])*t,GLD[2]+(EM[2]-GLD[2])*t];}}
+
+function paint(){
+  siteColors();
+  const d=img.data;
+  for(let y=0;y<G;y++){const row=y*G;for(let x=0;x<G;x++){const p=row+x,j=p*4;
+    if(!inLeaf[p]){d[j]=8;d[j+1]=13;d[j+2]=11;d[j+3]=255;continue;}
+    const s=nearest[p];let edge=false;
+    if(x<G-1&&inLeaf[p+1]&&nearest[p+1]!==s)edge=true;
+    else if(y<G-1&&inLeaf[p+G]&&nearest[p+G]!==s)edge=true;
+    else if(x>0&&inLeaf[p-1]&&nearest[p-1]!==s)edge=true;
+    else if(y>0&&inLeaf[p-G]&&nearest[p-G]!==s)edge=true;
+    if(edge){d[j]=246;d[j+1]=230;d[j+2]=168;}
+    else{const c=scol[s]||GLD;d[j]=c[0]*0.32+8;d[j+1]=c[1]*0.32+12;d[j+2]=c[2]*0.32+10;}
+    d[j+3]=255;}}
+  octx.putImageData(img,0,0);
+  ctx.clearRect(0,0,DISP,DISP);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,DISP,DISP);
+  // leaf margin + midrib, gold
+  ctx.strokeStyle='rgba(232,196,94,0.5)';ctx.lineWidth=1.6;ctx.beginPath();
+  const bot=leaf.bot*S,top=leaf.top*S,LH=leaf.LH*S,LW=leaf.LW*S,cxg=G/2*S,n=120;
+  for(let i=0;i<=n;i++){const tv=i/n;ctx.lineTo(cxg+halfWidth(tv)*LW, bot-tv*LH);}
+  for(let i=n;i>=0;i--){const tv=i/n;ctx.lineTo(cxg-halfWidth(tv)*LW, bot-tv*LH);}
+  ctx.closePath();ctx.stroke();
+  ctx.strokeStyle='rgba(232,196,94,0.32)';ctx.lineWidth=2.4;ctx.beginPath();
+  ctx.moveTo(cxg,bot);ctx.lineTo(cxg,bot-LH*0.96);ctx.stroke();
+}
+
+function tick(){ jfa(); const m=lloyd(frame<3?0.32:0.24); paint(); frame++;
+  if(frame>70 || (frame>20&&m<0.05)){ running=false; cancelAnimationFrame(raf); } }
+function loop(){ tick(); if(running) raf=requestAnimationFrame(loop); }
+function start(){ cancelAnimationFrame(raf); frame=0; running=true;
+  if(!leaf) leaf=buildLeaf(); spawn(N); loop(); }
+
+const sitesEl=document.getElementById('sites'),sitesv=document.getElementById('sitesv');
+sitesEl.oninput=()=>{sitesv.textContent=sitesEl.value;};
+sitesEl.onchange=()=>{N=+sitesEl.value;start();};
+document.getElementById('regen').onclick=()=>{N=+sitesEl.value;start();};
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='areole.png';a.href=canvas.toDataURL('image/png');a.click();};
+
+window.__sim={ step(k){ if(!leaf)leaf=buildLeaf(); for(let i=0;i<(k||1);i++)tick(); },
+  info(){return{sites:N,frame:frame,running:running};} };
+
+leaf=buildLeaf();
+start();
+</script>
+</body>
+</html>

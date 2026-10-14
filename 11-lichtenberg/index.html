@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lichtenberg — Dielectric Breakdown</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);
+  padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+h1{font-size:30px;margin:9px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:94vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
+button,select{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover,select:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.val{color:var(--gold2);min-width:42px;text-align:right}
+.caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 11 · Vol. III · Emergence</div>
+<div class="badge">Opus 4.8 · ultracode</div>
+<h1>Lichtenberg</h1>
+<p class="sub">Where charge cannot rest, it finds the steepest path and burns it into a tree.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Regenerate</button>
+  <div class="ctl">branchiness <input id="eta" type="range" min="1.0" max="6.0" step="0.1" value="2.6"><span class="val" id="etav">2.6</span></div>
+  <div class="ctl">growth <input id="spd" type="range" min="1" max="18" step="1" value="9"><span class="val" id="spdv">9</span></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">The <b>dielectric breakdown model</b> (Niemeyer–Pietronero–Wiesmann) grows a spark by solving the
+<b>Laplace equation</b> for electric potential around a conducting cluster, then letting it advance into a random
+neighbouring cell with probability proportional to the local field raised to a power <b>η</b>. The result is a
+stochastic fractal — the same branched <b>Lichtenberg figure</b> a real discharge etches into charged acrylic or
+across the sky.</p>
+<script>
+const canvas=document.getElementById('c');
+const W=820,H=820;
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+const ctx=fit();
+
+// ---- simulation grid ----
+const GRID=191;                       // odd so there is an exact centre cell
+const N=GRID*GRID;
+const CELL=W/GRID;                     // pixels per grid cell on screen
+const phi=new Float32Array(N);         // electric potential, 0..1
+const occ=new Uint8Array(N);           // 1 = part of the discharge cluster
+const age=new Int32Array(N);           // growth order stamp (-1 = unoccupied)
+let frontier=new Set();                // candidate cells = unoccupied 4-neighbours of cluster
+
+let eta=2.6;                           // branchiness exponent
+let perFrame=9;                        // cluster cells grown per animation frame
+let order=0;                           // running growth counter
+let maxAge=1;                          // largest age seen (for tip detection)
+let done=false;                        // growth finished?
+let reachedFrame=false;
+const CAP=4200;                        // hard cap on cluster size
+const SWEEPS=4;                        // Gauss-Seidel/SOR relaxation sweeps per growth step
+const OMEGA=1.5;                       // SOR over-relaxation factor
+const MIN_CELLS=3000;                  // grow at least this many before a frame-touch ends it (denser starburst)
+
+const idx=(x,y)=>y*GRID+x;
+
+function inFrame(x,y){return x<=0||y<=0||x>=GRID-1||y>=GRID-1;}
+
+function reset(){
+  phi.fill(1);                         // start everything at reservoir potential
+  occ.fill(0);
+  age.fill(-1);
+  frontier=new Set();
+  order=0;maxAge=1;done=false;reachedFrame=false;
+  // pin the outer frame to potential 1 (high-potential reservoir)
+  for(let x=0;x<GRID;x++){phi[idx(x,0)]=1;phi[idx(x,GRID-1)]=1;}
+  for(let y=0;y<GRID;y++){phi[idx(0,y)]=1;phi[idx(GRID-1,y)]=1;}
+  // seed ONE occupied cell at the centre -> starburst
+  const cx=(GRID-1)>>1, cy=(GRID-1)>>1;
+  occupy(cx,cy,0);
+}
+
+// add a cell to the cluster: pin phi=0, stamp age, refresh frontier
+function occupy(x,y,a){
+  const i=idx(x,y);
+  occ[i]=1;phi[i]=0;age[i]=a;
+  frontier.delete(i);
+  // its unoccupied orthogonal neighbours become candidates
+  if(x>0   && !occ[i-1])    frontier.add(i-1);
+  if(x<GRID-1 && !occ[i+1]) frontier.add(i+1);
+  if(y>0   && !occ[i-GRID]) frontier.add(i-GRID);
+  if(y<GRID-1 && !occ[i+GRID]) frontier.add(i+GRID);
+}
+
+// ---- Laplace relaxation: solve div(grad phi)=0 with SOR, re-pinning BCs each sweep ----
+function relax(){
+  for(let s=0;s<SWEEPS;s++){
+    // re-pin frame = 1 and cluster = 0 every sweep
+    for(let x=0;x<GRID;x++){phi[idx(x,0)]=1;phi[idx(x,GRID-1)]=1;}
+    for(let y=0;y<GRID;y++){phi[idx(0,y)]=1;phi[idx(GRID-1,y)]=1;}
+    // interior Gauss-Seidel with over-relaxation; skip pinned cluster cells
+    for(let y=1;y<GRID-1;y++){
+      let row=y*GRID;
+      for(let x=1;x<GRID-1;x++){
+        const i=row+x;
+        if(occ[i]){phi[i]=0;continue;}
+        const avg=0.25*(phi[i-1]+phi[i+1]+phi[i-GRID]+phi[i+GRID]);
+        phi[i]+=OMEGA*(avg-phi[i]);
+      }
+    }
+  }
+}
+
+// ---- one growth step: relax, weight candidates by phi^eta, roulette-pick one ----
+function growOne(){
+  if(done) return false;
+  relax();                                   // (1) Laplace relaxation FIRST, every step
+  if(frontier.size===0){done=true;return false;}
+  // While the figure is still small, keep candidates off the frame so a single
+  // freak finger cannot end the whole starburst before it fills the disc.
+  const guard = order<MIN_CELLS;
+  // (2)(3) gather candidate weights w = max(phi,0)^eta
+  const cells=[]; const wts=[]; let total=0;
+  for(const i of frontier){
+    if(guard && inFrame(i%GRID,(i/GRID)|0)) continue;   // defer frame cells
+    let p=phi[i]; if(p<0)p=0;                 // clamp negatives to 0
+    const w=Math.pow(p,eta);
+    cells.push(i);wts.push(w);total+=w;
+  }
+  if(cells.length===0){done=true;return false;}   // only frame cells left -> stop
+  let pick;
+  if(total<=0){                              // degenerate: all-zero field -> uniform pick
+    pick=cells[(Math.random()*cells.length)|0];
+  }else{
+    // (4) roulette-wheel selection by normalized weight
+    let r=Math.random()*total, acc=0; pick=cells[cells.length-1];
+    for(let k=0;k<cells.length;k++){acc+=wts[k];if(acc>=r){pick=cells[k];break;}}
+  }
+  const px=pick%GRID, py=(pick/GRID)|0;
+  order++;
+  occupy(px,py,order);
+  if(order>maxAge)maxAge=order;
+  if(inFrame(px,py)){reachedFrame=true;done=true;}   // touched the frame -> stop
+  if(order>=CAP)done=true;                            // hard size cap -> stop
+  return true;
+}
+
+// ============ RENDERING ============
+let flick=0;
+
+// warm trunk -> pale tip colour ramp by normalized age
+function boltColor(t){
+  // t: 0 = oldest trunk, 1 = newest tip
+  const r=Math.round(190+65*t);
+  const g=Math.round(120+108*t);
+  const b=Math.round(40+150*t);
+  return [r,g,b];
+}
+
+function draw(){
+  // background plate with faint vignette
+  ctx.globalCompositeOperation='source-over';
+  const bg=ctx.createRadialGradient(W/2,H/2,30,W/2,H/2,W*0.62);
+  bg.addColorStop(0,'#0c1411');bg.addColorStop(1,'#05080699'.slice(0,7));
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#060a08';ctx.fillRect(0,0,W,H);
+  const g2=ctx.createRadialGradient(W/2,H/2,20,W/2,H/2,W*0.6);
+  g2.addColorStop(0,'#0e1814');g2.addColorStop(1,'#060a08');ctx.fillStyle=g2;ctx.fillRect(0,0,W,H);
+
+  const sh=1.4+0.25*Math.sin(flick);          // subtle global shimmer once grown
+  const shimmer=done?sh:1.4;
+
+  ctx.globalCompositeOperation='lighter';
+
+  // PASS 1 — broad emerald halo around the whole figure (soft underglow)
+  ctx.fillStyle='rgba(47,150,105,0.030)';
+  for(let i=0;i<N;i++){
+    if(!occ[i])continue;
+    const x=(i%GRID)*CELL, y=((i/GRID)|0)*CELL;
+    const rad=CELL*3.2;
+    ctx.beginPath();ctx.arc(x+CELL/2,y+CELL/2,rad,0,6.283);ctx.fill();
+  }
+
+  // PASS 2 — warm bloom: thicker/brighter on the oldest main channels
+  for(let i=0;i<N;i++){
+    if(!occ[i])continue;
+    const a=age[i]; if(a<0)continue;
+    const t=maxAge>0?a/maxAge:0;
+    const trunk=1-t;                          // 1 at the oldest core
+    const x=(i%GRID)*CELL+CELL/2, y=((i/GRID)|0)*CELL+CELL/2;
+    const rad=(CELL*0.9+CELL*1.9*trunk)*shimmer;
+    const gg=ctx.createRadialGradient(x,y,0,x,y,rad);
+    gg.addColorStop(0,'rgba(232,196,94,'+(0.16+0.20*trunk)+')');
+    gg.addColorStop(1,'rgba(232,196,94,0)');
+    ctx.fillStyle=gg;
+    ctx.beginPath();ctx.arc(x,y,rad,0,6.283);ctx.fill();
+  }
+
+  // PASS 3 — the bright filament core, newest tips pale-gold/white
+  for(let i=0;i<N;i++){
+    if(!occ[i])continue;
+    const a=age[i]; if(a<0)continue;
+    const t=maxAge>0?a/maxAge:0;
+    const [r,g,b]=boltColor(t);
+    const x=(i%GRID)*CELL+CELL/2, y=((i/GRID)|0)*CELL+CELL/2;
+    // tips (recent growth) glow whiter & brighter
+    const tip=t>0.82?(t-0.82)/0.18:0;
+    const core=CELL*(0.62+0.55*(1-t))*shimmer;
+    const cr=Math.min(255,r+tip*60), cg=Math.min(255,g+tip*70), cb=Math.min(255,b+tip*80);
+    const gg=ctx.createRadialGradient(x,y,0,x,y,core);
+    gg.addColorStop(0,'rgba('+(cr|0)+','+(cg|0)+','+(cb|0)+',0.95)');
+    gg.addColorStop(0.5,'rgba('+(cr|0)+','+(cg|0)+','+(cb|0)+',0.45)');
+    gg.addColorStop(1,'rgba('+(cr|0)+','+(cg|0)+','+(cb|0)+',0)');
+    ctx.fillStyle=gg;
+    ctx.beginPath();ctx.arc(x,y,core,0,6.283);ctx.fill();
+  }
+
+  // PASS 4 — hot white pinpoint on the very freshest tips (last ~6% of growth)
+  const tipFrom=Math.floor(maxAge*0.94);
+  for(let i=0;i<N;i++){
+    if(!occ[i]||age[i]<tipFrom)continue;
+    const x=(i%GRID)*CELL+CELL/2, y=((i/GRID)|0)*CELL+CELL/2;
+    const gg=ctx.createRadialGradient(x,y,0,x,y,CELL*1.6);
+    gg.addColorStop(0,'rgba(255,250,235,0.9)');
+    gg.addColorStop(1,'rgba(255,250,235,0)');
+    ctx.fillStyle=gg;
+    ctx.beginPath();ctx.arc(x,y,CELL*1.6,0,6.283);ctx.fill();
+  }
+
+  ctx.globalCompositeOperation='source-over';
+}
+
+// ============ TICK (shared by rAF and __sim.step) ============
+function tick(){
+  if(!done){
+    // bounded per-frame work: at most `perFrame` cells, each with capped relaxation
+    for(let k=0;k<perFrame && !done;k++) growOne();
+  }else{
+    flick+=0.05;                         // post-completion shimmer
+  }
+  draw();
+}
+
+let raf;
+function loop(){tick();raf=requestAnimationFrame(loop);}
+function start(){cancelAnimationFrame(raf);reset();draw();loop();}
+
+// ---- controls ----
+const etaEl=document.getElementById('eta'),etav=document.getElementById('etav');
+const spdEl=document.getElementById('spd'),spdv=document.getElementById('spdv');
+etaEl.oninput=()=>{eta=+etaEl.value;etav.textContent=eta.toFixed(1);};
+spdEl.oninput=()=>{perFrame=+spdEl.value;spdv.textContent=perFrame;};
+document.getElementById('regen').onclick=start;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='lichtenberg.png';a.href=canvas.toDataURL('image/png');a.click();};
+
+// ---- headless / verifier hook: drive frames even if rAF is paused ----
+window.__sim={
+  step(n){for(let i=0;i<(n||1);i++)tick();},
+  info(){return{occupied:order,frontier:frontier.size,maxAge:maxAge,done:done,reachedFrame:reachedFrame,eta:eta};}
+};
+
+start();
+</script>
+</body>
+</html>

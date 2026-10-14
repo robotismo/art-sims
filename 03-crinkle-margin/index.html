@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crinkle Margin — Differential Growth</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:92vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:840px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.caption{max-width:680px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 03 · Differential Growth</div>
+<div class="badge fable">Fable 5</div>
+<h1>Crinkle Margin</h1>
+<p class="sub">An edge that grows faster than its frame must ruffle.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Regrow</button>
+  <div class="ctl">stiffness <input id="stiff" type="range" min="0" max="100" value="40"></div>
+  <div class="ctl">spacing <input id="space" type="range" min="10" max="26" value="16"></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption"><b>Differential growth</b> keeps a closed ribbon of nodes evenly spaced while repelling every nearby
+node and inserting new ones over time. Forced to fit more length into the same plane, the curve buckles into ruffles —
+the mechanism behind kale leaves and the corrugated folding of dehydrated <i>Rhapis excelsa</i> that lamm-mit cites as a
+blueprint for high strength-to-weight, shape-morphing surfaces.</p>
+<script>
+const canvas=document.getElementById('c');
+const W=820,H=820;
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.scale(dpr,dpr);return x;}
+const ctx=fit();
+
+let nodes,grid,gcell,target=16,repR=24,maxN=2600,attract=0.30,repel=0.55,align=0.40;
+const key=(a,b)=>a+'_'+b;
+function rebuild(){grid=new Map();for(let i=0;i<nodes.length;i++){
+  const cx=Math.floor(nodes[i].x/gcell),cy=Math.floor(nodes[i].y/gcell),k=key(cx,cy);
+  let a=grid.get(k);if(!a){a=[];grid.set(k,a);}a.push(i);}}
+function neigh(x,y){const out=[],cx=Math.floor(x/gcell),cy=Math.floor(y/gcell);
+  for(let gx=cx-1;gx<=cx+1;gx++)for(let gy=cy-1;gy<=cy+1;gy++){const a=grid.get(key(gx,gy));if(a)for(const i of a)out.push(i);}
+  return out;}
+
+function seed(){nodes=[];const cx=W/2,cy=H/2,R=70,n=64;
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2;
+    nodes.push({x:cx+Math.cos(a)*R,y:cy+Math.sin(a)*R});}}
+
+function grow(){
+  const n=nodes.length;
+  const fx=new Float32Array(n),fy=new Float32Array(n);
+  gcell=repR;rebuild();
+  for(let i=0;i<n;i++){
+    const a=nodes[(i-1+n)%n],b=nodes[(i+1)%n],c=nodes[i];
+    // attraction toward neighbours (spring to target spacing)
+    for(const nb of [a,b]){let dx=nb.x-c.x,dy=nb.y-c.y;const d=Math.hypot(dx,dy)||1;
+      const e=(d-target)/d*attract;fx[i]+=dx*e;fy[i]+=dy*e;}
+    // alignment: ease toward midpoint of neighbours (smoothing)
+    fx[i]+=((a.x+b.x)*0.5-c.x)*align*0.1;fy[i]+=((a.y+b.y)*0.5-c.y)*align*0.1;
+    // repulsion from nearby non-adjacent nodes
+    for(const j of neigh(c.x,c.y)){if(j===i)continue;
+      const d2=(i-j+n)%n;if(d2<=2||d2>=n-2)continue;
+      let dx=c.x-nodes[j].x,dy=c.y-nodes[j].y;const d=Math.hypot(dx,dy)||1;
+      if(d<repR){const e=(1-d/repR)*repel;fx[i]+=dx/d*e;fy[i]+=dy/d*e;}}
+  }
+  for(let i=0;i<n;i++){nodes[i].x+=fx[i];nodes[i].y+=fy[i];
+    nodes[i].x=Math.max(20,Math.min(W-20,nodes[i].x));nodes[i].y=Math.max(20,Math.min(H-20,nodes[i].y));}
+  // growth: split long edges + a little random injection
+  if(nodes.length<maxN){const out=[];
+    for(let i=0;i<n;i++){out.push(nodes[i]);const j=(i+1)%n;
+      const dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y,d=Math.hypot(dx,dy);
+      if(d>target*1.7||(Math.random()<0.012&&d>target*0.9))
+        out.push({x:(nodes[i].x+nodes[j].x)/2,y:(nodes[i].y+nodes[j].y)/2});}
+    nodes=out;}
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const n=nodes.length;
+  // translucent fill builds tissue depth
+  ctx.beginPath();ctx.moveTo(nodes[0].x,nodes[0].y);
+  for(let i=1;i<n;i++)ctx.lineTo(nodes[i].x,nodes[i].y);ctx.closePath();
+  const g=ctx.createRadialGradient(W/2,H/2,40,W/2,H/2,W*0.55);
+  g.addColorStop(0,'rgba(47,158,111,0.10)');g.addColorStop(1,'rgba(20,40,30,0.06)');ctx.fillStyle=g;ctx.fill();
+  // glow
+  ctx.globalCompositeOperation='lighter';ctx.lineJoin='round';
+  ctx.strokeStyle='rgba(232,196,94,0.06)';ctx.lineWidth=7;ctx.stroke();
+  // crisp margin
+  ctx.globalCompositeOperation='source-over';
+  ctx.strokeStyle='rgba(246,230,168,0.92)';ctx.lineWidth=1.6;ctx.stroke();
+}
+
+let raf;
+function loop(){for(let s=0;s<2;s++)grow();draw();raf=requestAnimationFrame(loop);}
+function start(){cancelAnimationFrame(raf);target=+space.value;repR=target*1.5;
+  align=(+stiff.value)/100*0.9+0.05;seed();loop();}
+
+const stiff=document.getElementById('stiff'),space=document.getElementById('space');
+document.getElementById('regen').onclick=start;
+stiff.oninput=()=>align=(+stiff.value)/100*0.9+0.05;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='crinkle-margin.png';a.href=canvas.toDataURL('image/png');a.click();};
+start();
+</script>
+</body>
+</html>

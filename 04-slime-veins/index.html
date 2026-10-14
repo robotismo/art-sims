@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slime Veins — Physarum Network</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#000}
+canvas{display:block;max-width:92vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:840px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.caption{max-width:680px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 04 · Physarum Stigmergy</div>
+<div class="badge fable">Fable 5</div>
+<h1>Slime Veins</h1>
+<p class="sub">Forty thousand cells, no leader, one network.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Respawn</button>
+  <div class="ctl">turn <input id="turn" type="range" min="10" max="80" value="38"></div>
+  <div class="ctl">sense <input id="sense" type="range" min="4" max="22" value="11"></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption">Each agent is a <i>Physarum polycephalum</i> cell: it samples a chemical trail at three sensors, steers
+toward the strongest, moves, and lays its own trail, which then diffuses and decays. From these blind local rules a
+transport <b>vein network</b> self-organizes and prunes itself for efficiency — the emergent vascular logic lamm-mit's
+materials borrow for distributing load and moisture.</p>
+<script>
+const canvas=document.getElementById('c');
+const G=340, DISP=760, S=DISP/G;
+canvas.width=DISP;canvas.height=DISP;canvas.style.maxWidth='92vw';
+const ctx=canvas.getContext('2d');
+const off=document.createElement('canvas');off.width=G;off.height=G;
+const octx=off.getContext('2d');const img=octx.createImageData(G,G);
+
+let trail=new Float32Array(G*G),tmp=new Float32Array(G*G);
+let NA=42000,px=new Float32Array(NA),py=new Float32Array(NA),ph=new Float32Array(NA);
+let SA=0.5, SD=11, TA=0.66, step=1.0, deposit=4.0, decay=0.90;
+const TAU=Math.PI*2;
+
+function spawn(){
+  for(let i=0;i<G*G;i++){trail[i]=0;tmp[i]=0;}
+  // seed agents across the whole field so the network spans the canvas
+  for(let i=0;i<NA;i++){px[i]=Math.random()*G;py[i]=Math.random()*G;ph[i]=Math.random()*TAU;}
+}
+function sample(x,y){const ix=((x%G)+G)%G|0,iy=((y%G)+G)%G|0;return trail[iy*G+ix];}
+
+function update(){
+  for(let i=0;i<NA;i++){
+    const x=px[i],y=py[i],h=ph[i];
+    const fc=sample(x+Math.cos(h)*SD,y+Math.sin(h)*SD);
+    const fl=sample(x+Math.cos(h-SA)*SD,y+Math.sin(h-SA)*SD);
+    const fr=sample(x+Math.cos(h+SA)*SD,y+Math.sin(h+SA)*SD);
+    let nh=h;
+    if(fc>fl&&fc>fr){}
+    else if(fc<fl&&fc<fr){nh=h+(Math.random()<0.5?TA:-TA);}
+    else if(fl<fr){nh=h+TA;}
+    else if(fr<fl){nh=h-TA;}
+    let nx=x+Math.cos(nh)*step,ny=y+Math.sin(nh)*step;
+    nx=((nx%G)+G)%G;ny=((ny%G)+G)%G;
+    px[i]=nx;py[i]=ny;ph[i]=nh;
+    const ix=nx|0,iy=ny|0;trail[iy*G+ix]+=deposit;
+  }
+}
+// separable 3x3 box blur + decay -> diffusion
+function diffuse(){
+  for(let y=0;y<G;y++){const r=y*G;
+    for(let x=0;x<G;x++){const xm=x>0?x-1:G-1,xp=x<G-1?x+1:0;
+      tmp[r+x]=(trail[r+xm]+trail[r+x]+trail[r+xp])/3;}}
+  for(let x=0;x<G;x++)for(let y=0;y<G;y++){const ym=y>0?y-1:G-1,yp=y<G-1?y+1:0;
+    trail[y*G+x]=(tmp[ym*G+x]+tmp[y*G+x]+tmp[yp*G+x])/3*decay;}
+}
+function paint(){const d=img.data;
+  for(let i=0;i<G*G;i++){let t=trail[i]*0.05;if(t>1)t=1;
+    const tc=Math.pow(t,0.7);
+    // black -> deep green -> gold -> white-hot
+    let r,g,b;
+    if(tc<0.5){const u=tc/0.5;r=6+u*(60-6);g=10+u*(150-10);b=10+u*(95-10);}
+    else{const u=(tc-0.5)/0.5;r=60+u*(255-60);g=150+u*(236-150);b=95+u*(170-95);}
+    const j=i*4;d[j]=r;d[j+1]=g;d[j+2]=b;d[j+3]=255;}
+  octx.putImageData(img,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,DISP,DISP);
+}
+
+let raf;
+function loop(){update();diffuse();paint();raf=requestAnimationFrame(loop);}
+function start(){cancelAnimationFrame(raf);SA=(+turn.value)/100*1.4;TA=(+turn.value)/100*1.4;SD=+sense.value;
+  spawn();loop();}
+
+const turn=document.getElementById('turn'),sense=document.getElementById('sense');
+document.getElementById('regen').onclick=start;
+turn.oninput=()=>{SA=(+turn.value)/100*1.4;TA=(+turn.value)/100*1.4;};
+sense.oninput=()=>SD=+sense.value;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='slime-veins.png';a.href=canvas.toDataURL('image/png');a.click();};
+start();
+</script>
+</body>
+</html>

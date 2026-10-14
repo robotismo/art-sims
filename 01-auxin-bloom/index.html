@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auxin Bloom — Leaf Venation</title>
+<style>
+:root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);color:var(--ink);
+  font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;display:flex;flex-direction:column;
+  align-items:center;padding:30px 18px 70px}
+.eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
+  font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
+h1{font-size:30px;margin:7px 0 2px;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px;font-style:italic}
+.stage{position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
+canvas{display:block;max-width:92vw;height:auto}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:840px}
+button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
+  padding:9px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--gold)}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace}
+input[type=range]{accent-color:var(--gold);width:120px}
+.caption{max-width:680px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
+.caption b{color:var(--ink);font-weight:600}
+a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
+  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
+a.back:hover{color:var(--gold)}
+.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
+.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">&larr; gallery</a>
+<div class="eyebrow">Simulation 01 · Space Colonization</div>
+<div class="badge fable">Fable 5</div>
+<h1>Auxin Bloom</h1>
+<p class="sub">Veins chase hormone sources until the whole blade is fed.</p>
+<div class="stage"><canvas id="c"></canvas></div>
+<div class="controls">
+  <button id="regen">⟳ Regenerate</button>
+  <div class="ctl">density <input id="dens" type="range" min="500" max="2600" value="1500"></div>
+  <div class="ctl">speed <input id="spd" type="range" min="1" max="8" value="3"></div>
+  <button id="save">⤓ Save PNG</button>
+</div>
+<p class="caption"><b>Space colonization</b> (Runions et&nbsp;al., 2005) scatters “auxin” attractors through a leaf
+silhouette; the nearest vein tip grows one step toward every attractor pulling on it, and attractors wink out once
+reached. Final stroke widths follow <b>Murray's law</b> — a parent vein's cube radius equals the sum of its children's —
+the same hierarchical plumbing lamm-mit's diffusion models learn to draw.</p>
+<script>
+const canvas=document.getElementById('c');
+const W=760,H=900;
+function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.scale(dpr,dpr);return x;}
+const ctx=fit();
+
+let leaf,attractors,nodes,grid,done;
+const D=6, di=110, dk=15;        // step / influence / kill distances
+let cell=di, maxNodes=9000, attN=1500, perFrame=3;
+
+function halfWidth(v){v=Math.min(Math.max(v,0),1);
+  const bell=Math.pow(Math.sin(Math.PI*v),0.62), skew=1-0.30*v;return 0.5*bell*skew;}
+function buildLeaf(){const cx=W/2,bot=H-58,top=66,LH=bot-top,LW=W*0.94,n=200,pts=[];
+  for(let i=0;i<=n;i++){const v=i/n;pts.push({x:cx+halfWidth(v)*LW,y:bot-v*LH});}
+  for(let i=n;i>=0;i--){const v=i/n;pts.push({x:cx-halfWidth(v)*LW,y:bot-v*LH});}
+  return{pts,cx,bot,top,LH,LW};}
+function inLeaf(x,y){const p=leaf.pts;let inside=false;
+  for(let i=0,j=p.length-1;i<p.length;j=i++){
+    if(((p[i].y>y)!=(p[j].y>y))&&(x<(p[j].x-p[i].x)*(y-p[i].y)/(p[j].y-p[i].y)+p[i].x))inside=!inside;}
+  return inside;}
+function leafPath(){const p=leaf.pts;ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
+  for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.closePath();}
+
+const key=(a,b)=>a+'_'+b;
+function addGrid(i){const n=nodes[i],cx=Math.floor(n.x/cell),cy=Math.floor(n.y/cell),k=key(cx,cy);
+  let a=grid.get(k);if(!a){a=[];grid.set(k,a);}a.push(i);}
+function nearest(x,y,maxd){const cx=Math.floor(x/cell),cy=Math.floor(y/cell);let best=-1,bd=maxd*maxd;
+  for(let gx=cx-1;gx<=cx+1;gx++)for(let gy=cy-1;gy<=cy+1;gy++){const a=grid.get(key(gx,gy));if(!a)continue;
+    for(const i of a){const n=nodes[i],dx=n.x-x,dy=n.y-y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=i;}}}
+  return best;}
+
+function seed(){
+  leaf=buildLeaf();nodes=[];grid=new Map();done=false;
+  nodes.push({x:leaf.cx,y:leaf.bot-4,parent:-1,children:[],r:1});addGrid(0);
+  let py=leaf.bot-4,prev=0;const topY=leaf.bot-leaf.LH*0.80;
+  while(py>topY){py-=D*1.35;const i=nodes.length;
+    nodes.push({x:leaf.cx+(Math.random()-.5)*2,y:py,parent:prev,children:[],r:1});
+    nodes[prev].children.push(i);addGrid(i);prev=i;}
+  attractors=[];let tries=0;
+  while(attractors.length<attN&&tries<attN*40){tries++;
+    const x=Math.random()*W,y=leaf.top+Math.random()*leaf.LH;
+    if(inLeaf(x,y))attractors.push({x,y});}
+}
+
+function step(){
+  if(attractors.length===0||nodes.length>maxNodes){done=true;return;}
+  const infl=new Map();
+  for(const a of attractors){const ni=nearest(a.x,a.y,di);if(ni<0)continue;
+    const n=nodes[ni];let dx=a.x-n.x,dy=a.y-n.y;const d=Math.hypot(dx,dy)||1;
+    let e=infl.get(ni);if(!e){e={x:0,y:0};infl.set(ni,e);}e.x+=dx/d;e.y+=dy/d;}
+  if(infl.size===0){done=true;return;}
+  const fresh=[];
+  infl.forEach((e,ni)=>{let dx=e.x,dy=e.y;const m=Math.hypot(dx,dy)||1;dx/=m;dy/=m;
+    dx+=(Math.random()-.5)*0.32;dy+=(Math.random()-.5)*0.32;const m2=Math.hypot(dx,dy)||1;dx/=m2;dy/=m2;
+    fresh.push({x:nodes[ni].x+dx*D,y:nodes[ni].y+dy*D,p:ni});});
+  for(const f of fresh){const i=nodes.length;
+    nodes.push({x:f.x,y:f.y,parent:f.p,children:[],r:1});nodes[f.p].children.push(i);addGrid(i);}
+  attractors=attractors.filter(a=>nearest(a.x,a.y,dk)<0);
+}
+
+function murray(){const order=[],stack=[0];
+  while(stack.length){const i=stack.pop();order.push(i);for(const c of nodes[i].children)stack.push(c);}
+  for(let k=order.length-1;k>=0;k--){const n=nodes[order[k]];
+    if(!n.children.length)n.r=1.05;
+    else{let s=0;for(const c of n.children)s+=Math.pow(nodes[c].r,2.4);n.r=Math.pow(s,1/2.4);}}}
+
+function mix(a,b,t){return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+const THICK=[214,166,72], THIN=[176,222,150];
+
+function render(growing){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();leafPath();
+  const g=ctx.createLinearGradient(0,leaf.top,0,leaf.bot);
+  g.addColorStop(0,'#0f1c15');g.addColorStop(1,'#0a130f');ctx.fillStyle=g;ctx.fill();ctx.clip();
+  const rootR=nodes[0].r||1;
+  // glow pass
+  ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+  for(let i=1;i<nodes.length;i++){const n=nodes[i],p=nodes[n.parent];const t=(n.r||1)/rootR;
+    ctx.lineWidth=(0.7+t*9)*2.4;ctx.strokeStyle='rgba(232,196,94,'+(growing?0.04:0.05)+')';
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(n.x,n.y);ctx.stroke();}
+  // core pass
+  ctx.globalCompositeOperation='source-over';
+  for(let i=1;i<nodes.length;i++){const n=nodes[i],p=nodes[n.parent];const t=growing?0.12:(n.r||1)/rootR;
+    const c=mix(THIN,THICK,Math.pow(t,0.6));
+    ctx.lineWidth=growing?1.1:0.7+t*9;ctx.strokeStyle='rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')';
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(n.x,n.y);ctx.stroke();}
+  ctx.restore();
+  leafPath();ctx.strokeStyle='rgba(232,196,94,.30)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+let raf;
+function loop(){
+  if(!done){for(let k=0;k<perFrame;k++)step();render(true);
+    if(done){murray();render(false);}raf=requestAnimationFrame(loop);}
+}
+function start(){cancelAnimationFrame(raf);attN=+dens.value;perFrame=+spd.value;seed();loop();}
+
+const dens=document.getElementById('dens'),spd=document.getElementById('spd');
+document.getElementById('regen').onclick=start;
+spd.oninput=()=>perFrame=+spd.value;
+document.getElementById('save').onclick=()=>{const a=document.createElement('a');
+  a.download='auxin-bloom.png';a.href=canvas.toDataURL('image/png');a.click();};
+start();
+</script>
+</body>
+</html>
