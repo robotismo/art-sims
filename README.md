@@ -1,21 +1,25 @@
 # Art Simulations
 
-Hand-built generative-art simulations. Each is a self-contained, animated, interactive `index.html` —
-open it in a browser and it runs.
+Seventeen generative-art simulations in four volumes. Each one is a single, self-contained `index.html`
+that runs live in the browser — animated, interactive, and readable as source.
 
-**Volume I — The Leaf Atlas** grows leaf structure from first principles: eight standalone canvas sims,
-no frameworks or build step. **Volume II — Cosmos** turns to the GPU — three.js + WebGL2 GPGPU pushing
-a million-plus particles through curl-noise flow, strange attractors, and a spiral galaxy.
+Live: **https://paredes.dev/art-sims/**
 
-```
-open index.html        # the gallery
-```
+| Volume | Pieces | Stack |
+|--------|--------|-------|
+| **I · The Leaf Atlas** — leaf structure grown from first principles | 01–05, 14–16 | 2D canvas, plain JavaScript |
+| **II · Cosmos** — millions of particles moved by GPU velocity fields | 06–10 | three.js r184, WebGL2 GPGPU |
+| **III · Emergence** — elaborate order from a few local rules | 11–13 | 2D canvas, plain JavaScript |
+| **IV · Magnum Opus** — one piece that gathers the series | 17 | three.js r184, WebGL2 GPGPU |
+
+**Numbering.** Pieces are numbered in the order they were made. 14–16 joined Vol. I after Vols. II and III
+existed, so Vol. I holds 01–05 and 14–16.
 
 ---
 
 ## The brief
 
-This volume is a direct response to the **[lamm-mit Leaf-inspired Image Generation
+Volume I is a direct response to the **[lamm-mit Leaf-inspired Image Generation
 collection](https://huggingface.co/collections/lamm-mit/leaf-inspired-image-generation)** from MIT's
 Laboratory for Atomistic and Molecular Mechanics (Markus J. Buehler). That collection is a family of
 diffusion models — `SD2.x → SDXL → SD3-medium → FLUX.1-dev` — fine-tuned with DreamBooth/LoRA on images
@@ -88,9 +92,9 @@ drifts each seed to its cell's centroid, settling the patchwork into the even mo
 
 ## Volume II — Cosmos
 
-The first **GPU-driven** piece in the series. Where Volume I ran on the 2D canvas, this volume moves to
-**three.js + WebGL2 GPGPU** and pushes the machine's graphics card: ~1 million particles (up to ~4.2M)
-advected every frame, position and velocity living in floating-point textures, updated by fragment shaders.
+The first **GPU-driven** pieces in the series. Where Volume I runs on the 2D canvas, this volume moves to
+**three.js + WebGL2 GPGPU** (`GPUComputationRenderer`): roughly a million particles by default (up to ~4.2M),
+advected every frame, with position and velocity stored in floating-point textures and updated by fragment shaders.
 
 | # | Piece | Algorithm | Principle |
 |---|-------|-----------|-----------|
@@ -115,10 +119,7 @@ three morphable modes:
 Stir the field with the cursor, orbit/dive with the mouse, switch modes to watch the cloud physically
 flow from one face to the next. An FPS-adaptive governor scales the particle count to keep 60fps and
 climbs toward the GPU's ceiling. *Controls: mode, reseed, flow scale, drift, glow, trails, particle
-count ("Push it"), Save PNG.* Built with **three.js r184 loaded from a CDN**, so unlike the offline Vol. I
-pieces it needs an internet connection the first time it loads.
-
----
+count ("Push it"), Save PNG.*
 
 ### 07 · Genesis — `07-genesis/`
 A Newtonian **N-body galaxy encounter**: two massive cores, each wrapped in a disk of a million dust grains, interact
@@ -143,9 +144,7 @@ orbital speed.
 
 ## Volume III — Emergence
 
-Order without a designer — three studies where elaborate structure falls out of a few local rules. **Forged with
-Opus 4.8 in `ultracode` multi-agent orchestration**: each piece was built by one agent, then adversarially verified and
-repaired by a second, and is badged *Opus 4.8 · ultracode* in-app.
+Order without a designer — three studies where elaborate structure falls out of a few local rules.
 
 | # | Piece | Algorithm | Principle |
 |---|-------|-----------|-----------|
@@ -172,8 +171,7 @@ grid** so the flock stays O(n); a hawk triggers the rolling flash-waves of a rea
 
 ## Volume IV — Magnum Opus
 
-The crown of the series — one piece that gathers everything the prior seventeen learned into a single showpiece on the
-proven GPGPU engine, **forged with Opus 4.8**.
+One piece that gathers what the series learned into a single showpiece on the GPGPU engine of Vol. II.
 
 | # | Piece | Algorithm | Principle |
 |---|-------|-----------|-----------|
@@ -186,41 +184,88 @@ forever without ever compressing it. Each mote is drawn not as a point but as a 
 segment**, so coherent currents read as silk and turbulence as braid — the light *is* the flow. A director eases the
 field through four **movements** — *Laminar → Turbulent → Vortical → Calm* — with randomized durations and freshly
 reseeded vortices each cycle, so it is a generative composition that **never repeats**. Stir it with the cursor and the
-divergence-free field heals the channel you carve. Default ~2.1M filaments at 60fps on this M2 Pro; "Push it" climbs to
+divergence-free field heals the channel you carve. Default ~2.1M filaments at 60fps on an M2 Pro MacBook Pro; "Push it" climbs to
 4.2M / 6.6M. *Controls: reseed, turbulence, swirl, streak length, glow, particle count, Save PNG.*
 
 ---
 
 ## How it's built
 
-- **Pure browser canvas + vanilla JS.** Every file is standalone and portable — email one, it still runs.
-- Typed arrays and uniform-grid spatial hashing keep the heavier sims (RD, physarum) at interactive frame rates.
-- A shared dark **gold-and-emerald** palette echoes the lamm-mit aesthetic across all five.
-- Every piece has a **Save PNG** button.
+- **One file per piece.** Each `NN-name/index.html` holds its own HTML, CSS and JavaScript. There is no build step and
+  no bundler; open the file and read it.
+- **Two stacks.** Vols. I and III use the 2D canvas with plain JavaScript and no libraries. Vols. II and IV use
+  **three.js r184** for WebGL2 GPGPU. They load it through an import map from `vendor/three/` in this repo, so the
+  site makes no CDN requests at runtime.
+- **Needs for the GPU pieces.** WebGL2 with floating-point render targets (`EXT_color_buffer_float`). Without them,
+  the piece shows a short message instead of the canvas. On phones and tablets they start at their smallest particle
+  preset.
+- Typed arrays and uniform-grid spatial hashing keep the heavier 2D sims (reaction–diffusion, physarum, boids) at
+  interactive frame rates. Every piece has a **Save PNG** button.
 
 ```
 ArtSimulations/
-├── index.html                                       # gallery with generative thumbnails
-├── 01-auxin-bloom/ … 05-phyllotaxis-bloom/  14-frond/ 15-dendrite/ 16-areole/   # Vol. I · Leaf Atlas (canvas)
-├── 06-flux/                                          # Vol. II · Cosmos — three.js GPGPU
-├── 07-genesis/ 08-magnetosphere/ 09-maelstrom/ 10-singularity/   # Vol. II · Cosmos (cont.)
-├── 11-lichtenberg/ 12-stable-fluids/ 13-murmuration/             # Vol. III · Emergence
-└── README.md
+├── index.html                       # gallery (thumbnails are drawn once, lazily, on a 2D canvas)
+├── 01-auxin-bloom/ … 05-phyllotaxis-bloom/, 14-frond/, 15-dendrite/, 16-areole/   # Vol. I · Leaf Atlas (2D canvas)
+├── 06-flux/ … 10-singularity/       # Vol. II · Cosmos (three.js GPGPU)
+├── 11-lichtenberg/ 12-stable-fluids/ 13-murmuration/   # Vol. III · Emergence (2D canvas)
+├── 17-aurelian/                     # Vol. IV · Magnum Opus (three.js GPGPU)
+├── vendor/three/                    # three.js 0.184.0 (build + the examples/jsm modules in use) and its LICENSE
+├── favicon.svg, apple-touch-icon.png
+├── scripts/                         # dev-only tools, not deployed
+└── .github/workflows/pages.yml      # GitHub Pages deploy
 ```
 
-No server required — `open index.html`. (Or `python3 -m http.server` and browse to it.)
+## Run it locally
+
+Serve the folder over HTTP. The GPU pieces use ES modules and an import map, which browsers do not load from
+`file://`.
+
+```sh
+python3 -m http.server 8000
+# then open http://localhost:8000/
+```
+
+## Deploy
+
+Every push to `main` (or a manual run) starts `.github/workflows/pages.yml`. The workflow:
+
+1. exports the committed tree with `git archive` into `_site/`;
+2. removes the repo-only files (`.github/`, `scripts/`, `README.md`, `.gitignore`), and keeps `LICENSE` and
+   `vendor/three/LICENSE`;
+3. uploads `_site/` with `actions/upload-pages-artifact` and publishes it with `actions/deploy-pages`.
+
+The site is served at **https://paredes.dev/art-sims/**. One-time setup: in the repo settings, set
+**Pages → Source** to **GitHub Actions**.
+
+### Change the site origin
+
+The canonical, Open Graph and Twitter-card URLs are absolute, so the origin is written into each page. To move the site:
+
+```sh
+scripts/set-site-url.sh https://paredes.dev https://new-origin.example
+```
+
+The script rewrites the origin in every `*.html` file and in this README, updates `SITE_URL` in
+`scripts/site-url.mjs`, and then runs `node scripts/site-url.mjs --check`, which exits 1 if any `/art-sims/` URL
+still uses another origin. It works with the BSD `sed` on macOS and GNU `sed` on Linux. The `/art-sims/` path
+itself does not change.
+
+`scripts/vendor-three.mjs` rebuilds `vendor/three/` from an unpacked `three@0.184.0` npm package
+(`node scripts/vendor-three.mjs <path-to-package>`).
 
 ---
 
-## Roadmap
+## Credits
 
-Volume I is the first of many. Queued:
+Written with Anthropic's Claude models: **01–05** with Claude Fable 5; **06–10 and 14–17** with Claude Opus 4.8;
+**11–13** with Claude Opus 4.8 in ultracode multi-agent mode (one agent built each piece, and a second agent
+adversarially verified and repaired it).
 
-- **Cymatics / Chladni plates** — standing-wave nodal figures traced by migrating sand
-- **Ferrofluid spikes** — the Rosensweig instability of a magnetized fluid
-- **Crack propagation** — brittle fracture networks and craquelure
-- More **Vol. III · Emergence** studies, and deeper **Vol. II · Cosmos** GPGPU (fluid & flame)
-- Later volumes: shells & spirals, crystal & fracture
+## License
+
+The code in this repository is released under the [MIT License](LICENSE), © 2026 Joe Paredes.
+three.js (in `vendor/three/`) is © the three.js authors and is also MIT-licensed; see
+[`vendor/three/LICENSE`](vendor/three/LICENSE).
 
 ---
 
