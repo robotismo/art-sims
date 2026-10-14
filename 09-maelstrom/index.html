@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Maelstrom — Point-Vortex Turbulence</title>
+<meta name="description" content="A handful of whirlpools stir a sea of light into storms that merge and devour.">
+<link rel="canonical" href="https://paredes.dev/art-sims/09-maelstrom/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Art Simulations">
+<meta property="og:title" content="Maelstrom — Point-Vortex Turbulence">
+<meta property="og:description" content="A handful of whirlpools stir a sea of light into storms that merge and devour.">
+<meta property="og:url" content="https://paredes.dev/art-sims/09-maelstrom/">
+<meta property="og:image" content="https://paredes.dev/art-sims/09-maelstrom/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Still frame from the Maelstrom simulation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Maelstrom — Point-Vortex Turbulence">
+<meta name="twitter:description" content="A handful of whirlpools stir a sea of light into storms that merge and devour.">
+<meta name="twitter:image" content="https://paredes.dev/art-sims/09-maelstrom/og.jpg">
+<meta name="twitter:image:alt" content="Still frame from the Maelstrom simulation">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="theme-color" content="#070b09">
 <style>
 :root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
 *{box-sizing:border-box}
@@ -15,18 +34,24 @@ body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);co
   font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
 h1{font-size:30px;margin:7px 0 2px;font-weight:600;letter-spacing:.01em}
 .sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic;text-align:center;max-width:680px}
-.stage{position:relative;border-radius:14px;overflow:hidden;width:clamp(360px,94vw,1180px);height:clamp(380px,72vh,720px);
+.stage{position:relative;border-radius:14px;overflow:hidden;width:min(1180px,100%);height:clamp(380px,72vh,720px);
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 90px -34px #000;background:#04070a}
-canvas{display:block;width:100%;height:100%}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+@media (max-width:600px){.stage{height:clamp(300px,58vh,520px)}}
 .hud{position:absolute;top:12px;left:14px;font-family:ui-monospace,monospace;font-size:11px;
   color:var(--muted);letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 3px #000}
 .hud b{color:var(--gold2);font-weight:500}
 .modechip{position:absolute;top:12px;right:14px;font-family:ui-monospace,monospace;font-size:11px;
   letter-spacing:.18em;color:var(--gold);pointer-events:none;text-shadow:0 1px 3px #000}
+@media (max-width:600px){.modechip{top:30px}}   /* phone: the HUD line reaches the right edge, so drop the chip below it */
 .hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:ui-monospace,monospace;
   font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
 .banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
   padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04070ae6}
+/* ── GPGPU guard banner link (CONVENTIONS d) ── */
+.banner a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(232,196,94,.4);font-family:ui-monospace,'SF Mono',monospace;font-size:13px}
+.banner a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.banner small{color:var(--muted)}
 .controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:center;
   margin:18px 0 10px;max-width:1080px}
 .seg{display:inline-flex;border:1px solid rgba(232,196,94,.28);border-radius:9px;overflow:hidden}
@@ -42,17 +67,20 @@ input[type=range]{accent-color:var(--gold);width:96px}
 .caption{max-width:720px;text-align:center;color:var(--muted);font-size:13px;line-height:1.62;margin-top:6px}
 .caption b{color:var(--ink);font-weight:600}
 .caption .live{color:var(--gold2)}
-a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
-  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;z-index:5}
-a.back:hover{color:var(--gold)}
-.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
-.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+/* ── back link (CONVENTIONS b) ── */
+a.back{position:absolute;top:14px;left:16px;z-index:10;display:inline-block;padding:6px 10px;border-radius:8px;
+  color:var(--muted);text-decoration:none;font-family:ui-monospace,'SF Mono',monospace;font-size:12px;letter-spacing:.08em;
+  background:rgba(7,11,9,.72);border:1px solid rgba(232,196,94,.16)}
+a.back:hover{color:var(--gold);border-color:rgba(232,196,94,.45)}
+a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(--gold2)}
+@media (max-width:900px){a.back{position:static;align-self:flex-start;margin:-10px 0 14px}}
+/* centre the header text when it wraps on narrow screens (CONVENTIONS g) */
+.eyebrow,h1,.sub{text-align:center}
 </style>
 </head>
 <body>
-<a class="back" href="../index.html">&larr; gallery</a>
+<a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 09 · Vol. II · Cosmos</div>
-<div class="badge">Opus 4.8</div>
 <h1>Maelstrom</h1>
 <p class="sub">A handful of whirlpools stir a sea of light into storms that merge and devour.</p>
 
@@ -71,7 +99,9 @@ a.back:hover{color:var(--gold)}
   <div class="ctl">drift <input id="s_drift" type="range" min="2" max="40" value="14"></div>
   <div class="ctl">glow <input id="s_glow" type="range" min="20" max="170" value="62"></div>
   <button id="trails" class="on">trails: on</button>
+  <button id="spin" aria-pressed="false" title="Spin of the whirlpool a click or tap spawns (right click spawns the opposite)">spin: ↺ CCW</button>
   <button id="push">▲ Push it · 1.0M</button>
+  <button id="playpause" aria-pressed="false">❚❚ Pause</button>
   <button id="save">⤓ Save PNG</button>
 </div>
 
@@ -80,8 +110,8 @@ a.back:hover{color:var(--gold)}
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+    "three": "../vendor/three/build/three.module.js",
+    "three/addons/": "../vendor/three/examples/jsm/"
   }
 }
 </script>
@@ -105,7 +135,9 @@ const PRESETS = [
   { tex:1448, label:'2.1M' },
   { tex:2048, label:'4.2M' },
 ];
-let presetIdx = 1;                 // default MED = 1024² on Apple Silicon
+const LOW_END = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let presetIdx = LOW_END ? 0 : 1;   // desktop default MED = 1024² on Apple Silicon; phones/tablets start at the smallest preset
 let modeExposure = 0.095;          // tracer-sheet exposure
 const ui = {
   swirl: 1.0,       // overall circulation scale (uSwirl multiplier)
@@ -333,15 +365,36 @@ void main(){
 const canvas = document.getElementById('c');
 const stage  = document.getElementById('stage');
 const banner = document.getElementById('banner');
+/* ── GPGPU guard (CONVENTIONS d): needs WebGL2 + float render targets. Probe a THROWAWAY canvas —
+      never the real one, because context attributes stick on the first getContext call. ── */
+{
+  let gpgpuOK = false;
+  try {
+    const probe = document.createElement('canvas');
+    const gl = probe.getContext('webgl2');
+    gpgpuOK = !!(gl && gl.getExtension('EXT_color_buffer_float'));
+    const lose = gl && gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+  } catch (e) { gpgpuOK = false; }
+  if (!gpgpuOK) {
+    banner.style.display = 'flex';
+    banner.innerHTML = '<div>This piece simulates millions of particles on the GPU and needs WebGL2 with '
+      + 'floating-point render targets.<br><small>This browser or device does not provide them.</small>'
+      + '<br><br><a href="../">&larr; All simulations</a></div>';
+    for (const id of ['hint', 'hud']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+    const ctl = document.querySelector('.controls'); if (ctl) ctl.style.display = 'none';
+    await new Promise(() => {});   // stop this module here: top-level await that never settles, no thrown error
+  }
+}
 
 let renderer, scene, camera, controls, composer, bloomPass, afterPass, gpu;
 let posVar, velVar, simU, points, geomRef = null;
 let texSize = PRESETS[presetIdx].tex;
-const clock = new THREE.Clock();
+const timer = new THREE.Timer(); timer.connect(document);
 
 function stageSize(){ return { w: stage.clientWidth||1100, h: stage.clientHeight||640 }; }
 renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, preserveDrawingBuffer:true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, LOW_END ? 1 : 2));
 { const s=stageSize(); renderer.setSize(s.w, s.h, false); }
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -549,6 +602,7 @@ function buildPoints(size){
 
 /* ─────────────────────────  post-processing  ───────────────────────── */
 function buildComposer(){
+  if(composer){ for(const p of composer.passes) p.dispose(); composer.dispose(); }   // free the old passes' render targets on rebuild
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w, s.h), ui.glow, 0.62, 0.52); }
@@ -602,26 +656,40 @@ function cursorOnPlane(e){
   _ray.origin.copy(o); _ray.direction.copy(far.sub(o).normalize());
   return _ray.intersectPlane(_planeForRay, _hit) ? _hit.clone() : null;
 }
+// spin of a spawned whirlpool: +1 CCW, -1 CW. A left click or a tap uses spinDir; a right click uses the
+// opposite. The "spin" button flips spinDir, so touch (no right click) can spawn both directions.
+let spinDir = 1;
+const spinBtn = document.getElementById('spin');
+spinBtn.addEventListener('click', ()=>{
+  spinDir = -spinDir; spinBtn.textContent = 'spin: '+(spinDir>0 ? '↺ CCW' : '↻ CW'); spinBtn.setAttribute('aria-pressed', String(spinDir<0));
+});
+const dirFor = btn => (btn===2) ? -spinDir : spinDir;
 canvas.addEventListener('pointermove', e=>{
   setRayFromEvent(e);
   stirTarget = pointerDown ? 130 : 64;
-  // while dragging, swirl the dust radially in the held direction (CCW left / CW right)
-  if(pointerDown){ simU.uStirRadial.value = (pointerBtn===2)?1.4:-1.4; }
+  // while dragging, swirl the dust radially in the held direction (CCW inward / CW outward)
+  if(pointerDown){ simU.uStirRadial.value = dirFor(pointerBtn)>0 ? -1.4 : 1.4; }
   else { simU.uStirRadial.value = 0.0; }
   lastInput = performance.now();
 });
 canvas.addEventListener('pointerdown', e=>{
   pointerDown=true; pointerBtn=e.button; setRayFromEvent(e); stirTarget=130; lastInput=performance.now();
-  // inject a vortex at the unprojected cursor-on-plane (left = CCW, right = CW)
+  // inject a vortex at the unprojected cursor-on-plane (left / tap = spinDir, right = opposite).
+  // Only the primary pointer spawns, so the second finger of a pinch does not drop an extra whirlpool.
+  if(!e.isPrimary) return;
   const hit = cursorOnPlane(e);
-  if(hit){ injectVortex(hit.x, hit.y, (e.button===2)?-1:1); packVortices(); }
+  if(hit){ injectVortex(hit.x, hit.y, dirFor(e.button)); packVortices(); }
 });
-window.addEventListener('pointerup', ()=>{ pointerDown=false; simU.uStirRadial.value=0.0; });
+['pointerup','pointercancel'].forEach(ev=>window.addEventListener(ev, ()=>{ pointerDown=false; simU.uStirRadial.value=0.0; }));
 canvas.addEventListener('contextmenu', e=>e.preventDefault());
 ['pointerdown','wheel','keydown'].forEach(ev=>window.addEventListener(ev, ()=>lastInput=performance.now(), {passive:true}));
 
 let paused = false;
-window.addEventListener('keydown', e=>{ if(e.code==='Space'){ paused=!paused; e.preventDefault(); } });
+if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'tap to spawn a whirlpool · drag to orbit & stir · pinch to dive';
+const ppBtn = document.getElementById('playpause');
+function setPaused(p){ paused = p; ppBtn.textContent = p ? '▶ Play' : '❚❚ Pause'; ppBtn.setAttribute('aria-pressed', String(p)); }
+ppBtn.addEventListener('click', ()=>setPaused(!paused));
+window.addEventListener('keydown', e=>{ if(e.code==='Space' && e.target===document.body){ setPaused(!paused); e.preventDefault(); } });
 
 /* ─────────────────────────  controls / UI  ───────────────────────── */
 document.getElementById('reseed').addEventListener('click', reseedAll);
@@ -699,7 +767,7 @@ if(window.ResizeObserver){ new ResizeObserver(()=>onResize()).observe(stage); }
 /* ─────────────────────────  main loop  ───────────────────────── */
 function animate(){
   requestAnimationFrame(animate);
-  const dtMs = clock.getDelta()*1000;
+  timer.update(); const dtMs = timer.getDelta()*1000;
   const dt = Math.min(dtMs/1000, 1/45);
   frame(dt, dtMs);
 }
@@ -709,7 +777,7 @@ function frame(dt, dtMs){
   stirTarget *= 0.86;
 
   // idle auto-orbit after 6s
-  controls.autoRotate = (performance.now()-lastInput > 6000);
+  controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
   document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
 
   if(!paused){
@@ -735,7 +803,7 @@ function frame(dt, dtMs){
 
   controls.update();
   composer.render();
-  governor(dtMs);
+  if(!paused) governor(dtMs);   // a paused still frame must not change resolution or draw range
 
   // HUD
   if((animate._f=(animate._f||0)+1)%12===0){
@@ -760,6 +828,7 @@ try{
                    set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; },
                    get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), numVort:vortices.length}; } };
   animate();
+  if(REDUCED){ window.__sim.step(300); setPaused(true); }   // reduced motion: settle the field, then hold a still frame
 }catch(err){
   console.error(err);
   if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the particle engine.<br><small>'+(err&&err.message||err)+'</small>');

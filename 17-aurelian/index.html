@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aurelian — A Living Tapestry of Light</title>
+<meta name="description" content="A living tapestry of light — millions of velocity-streak filaments woven by a divergence-free flow that breathes through laminar, turbulent, vortical, and calm movements, and never repeats.">
+<link rel="canonical" href="https://paredes.dev/art-sims/17-aurelian/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Art Simulations">
+<meta property="og:title" content="Aurelian — A Living Tapestry of Light">
+<meta property="og:description" content="A living tapestry of light — millions of velocity-streak filaments woven by a divergence-free flow that breathes through laminar, turbulent, vortical, and calm movements, and never repeats.">
+<meta property="og:url" content="https://paredes.dev/art-sims/17-aurelian/">
+<meta property="og:image" content="https://paredes.dev/art-sims/17-aurelian/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Still frame from the Aurelian simulation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Aurelian — A Living Tapestry of Light">
+<meta name="twitter:description" content="A living tapestry of light — millions of velocity-streak filaments woven by a divergence-free flow that breathes through laminar, turbulent, vortical, and calm movements, and never repeats.">
+<meta name="twitter:image" content="https://paredes.dev/art-sims/17-aurelian/og.jpg">
+<meta name="twitter:image:alt" content="Still frame from the Aurelian simulation">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="theme-color" content="#070b09">
 <style>
 :root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
 *{box-sizing:border-box}
@@ -13,13 +32,12 @@ body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);co
   align-items:center;padding:24px 18px 60px}
 .eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
   font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
-.badge{display:inline-block;margin:8px 0 2px;font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.18em;
-  color:var(--gold2);border:1px solid rgba(232,196,94,.4);border-radius:20px;padding:3px 11px}
 h1{font-size:34px;margin:6px 0 2px;font-weight:600;letter-spacing:.01em}
 .sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic;text-align:center;max-width:720px;line-height:1.5}
-.stage{position:relative;border-radius:14px;overflow:hidden;width:clamp(360px,95vw,1320px);height:clamp(380px,76vh,800px);
+.stage{position:relative;border-radius:14px;overflow:hidden;width:min(1320px,100%);height:clamp(380px,76vh,800px);
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 90px -34px #000;background:#04060a}
-canvas{display:block;width:100%;height:100%}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+@media (max-width:600px){.stage{height:clamp(300px,58vh,520px)}}
 .hud{position:absolute;top:12px;left:14px;font-family:ui-monospace,monospace;font-size:11px;
   color:var(--muted);letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 3px #000}
 .hud b{color:var(--gold2);font-weight:500}
@@ -29,6 +47,10 @@ canvas{display:block;width:100%;height:100%}
   font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
 .banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
   padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04060ae6}
+/* ── GPGPU guard banner link (CONVENTIONS d) ── */
+.banner a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(232,196,94,.4);font-family:ui-monospace,'SF Mono',monospace;font-size:13px}
+.banner a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.banner small{color:var(--muted)}
 .controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 10px;max-width:1180px}
 button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
   padding:8px 14px;border-radius:9px;font:inherit;font-size:12.5px;cursor:pointer;transition:.15s}
@@ -38,15 +60,20 @@ input[type=range]{accent-color:var(--gold);width:92px}
 .caption{max-width:740px;text-align:center;color:var(--muted);font-size:13px;line-height:1.62;margin-top:6px}
 .caption b{color:var(--ink);font-weight:600}
 .caption .live{color:var(--gold2)}
-a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
-  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;z-index:5}
-a.back:hover{color:var(--gold)}
+/* ── back link (CONVENTIONS b) ── */
+a.back{position:absolute;top:14px;left:16px;z-index:10;display:inline-block;padding:6px 10px;border-radius:8px;
+  color:var(--muted);text-decoration:none;font-family:ui-monospace,'SF Mono',monospace;font-size:12px;letter-spacing:.08em;
+  background:rgba(7,11,9,.72);border:1px solid rgba(232,196,94,.16)}
+a.back:hover{color:var(--gold);border-color:rgba(232,196,94,.45)}
+a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(--gold2)}
+@media (max-width:900px){a.back{position:static;align-self:flex-start;margin:-10px 0 14px}}
+/* centre the header text when it wraps on narrow screens (CONVENTIONS g) */
+.eyebrow,h1,.sub{text-align:center}
 </style>
 </head>
 <body>
-<a class="back" href="../index.html">&larr; gallery</a>
+<a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 17 · Vol. IV · Magnum Opus</div>
-<div class="badge">Opus 4.8</div>
 <h1>Aurelian</h1>
 <p class="sub">A living tapestry of light — millions of velocity-streak filaments woven by a divergence-free flow that breathes through laminar, turbulent, vortical, and calm movements, and never repeats.</p>
 
@@ -65,6 +92,7 @@ a.back:hover{color:var(--gold)}
   <div class="ctl">streak <input id="s_streak" type="range" min="20" max="220" value="100"></div>
   <div class="ctl">glow <input id="s_glow" type="range" min="20" max="180" value="100"></div>
   <button id="push">▲ Push it · 2.1M</button>
+  <button id="playpause" aria-pressed="false">❚❚ Pause</button>
   <button id="save">⤓ Save PNG</button>
 </div>
 
@@ -73,8 +101,8 @@ a.back:hover{color:var(--gold)}
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+    "three": "../vendor/three/build/three.module.js",
+    "three/addons/": "../vendor/three/examples/jsm/"
   }
 }
 </script>
@@ -96,9 +124,11 @@ const PRESETS = [
   { tex:2048, label:'4.2M' },
   { tex:2560, label:'6.6M' },
 ];
-let presetIdx = 1;                  // 2.1M default — instant 60fps; "Push it" climbs to 4.2M / 6.6M
+const LOW_END = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let presetIdx = LOW_END ? 0 : 1;                  // 2.1M default — instant 60fps; "Push it" climbs to 4.2M / 6.6M
 let texSize = PRESETS[presetIdx].tex;
-const clock = new THREE.Clock();
+const timer = new THREE.Timer(); timer.connect(document);
 
 /* live-eased composition state (the director drives these toward each movement's targets) */
 const comp = { lamAmp:22, turbAmp:2, vortAmp:0, turbScale:0.05, streak:1.7, warm:0.0, glow:0.8 };
@@ -315,6 +345,28 @@ void main(){
 const canvas = document.getElementById('c');
 const stage  = document.getElementById('stage');
 const banner = document.getElementById('banner');
+/* ── GPGPU guard (CONVENTIONS d): needs WebGL2 + float render targets. Probe a THROWAWAY canvas —
+      never the real one, because context attributes stick on the first getContext call. ── */
+{
+  let gpgpuOK = false;
+  try {
+    const probe = document.createElement('canvas');
+    const gl = probe.getContext('webgl2');
+    gpgpuOK = !!(gl && gl.getExtension('EXT_color_buffer_float'));
+    const lose = gl && gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+  } catch (e) { gpgpuOK = false; }
+  if (!gpgpuOK) {
+    banner.style.display = 'flex';
+    banner.innerHTML = '<div>This piece simulates millions of particles on the GPU and needs WebGL2 with '
+      + 'floating-point render targets.<br><small>This browser or device does not provide them.</small>'
+      + '<br><br><a href="../">&larr; All simulations</a></div>';
+    for (const id of ['hint', 'hud']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+    const ctl = document.querySelector('.controls'); if (ctl) ctl.style.display = 'none';
+    await new Promise(() => {});   // stop this module here: top-level await that never settles, no thrown error
+  }
+}
+if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'drag to comb the silk · two fingers push · pinch to dive';
 
 let renderer, scene, camera, controls, composer, bloomPass, gpu;
 let posVar, velVar, simU, points, geomRef = null;
@@ -322,7 +374,7 @@ let posVar, velVar, simU, points, geomRef = null;
 function stageSize(){ return { w: stage.clientWidth||1180, h: stage.clientHeight||680 }; }
 
 renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, preserveDrawingBuffer:true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, LOW_END ? 1 : 2));
 { const s=stageSize(); renderer.setSize(s.w, s.h, false); }
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -453,12 +505,13 @@ function buildPoints(size){
   geom.setAttribute('reference', new THREE.BufferAttribute(refs,2));
   geom.setAttribute('aEnd', new THREE.BufferAttribute(ends,1));
   geomRef = geom;
+  geom.setDrawRange(0, 2*Math.floor(n*drawFrac));
   const mat = new THREE.ShaderMaterial({
     uniforms:{
       texturePosition:{value:null}, textureVelocity:{value:null},
       uPixelRatio:{value:renderer.getPixelRatio()}, uSpeedScale:{value:70.0},
       uTrail:{value:comp.streak}, uMaxStreak:{value:26.0},
-      uExposure:{value:0.011}, uFogDensity:{value:0.0019}, uWarm:{value:0.0},
+      uExposure:{value:EXPOSURE}, uFogDensity:{value:0.0019}, uWarm:{value:0.0},
     },
     vertexShader: POINTS_VERT, fragmentShader: POINTS_FRAG,
     transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
@@ -470,6 +523,7 @@ function buildPoints(size){
 
 /* ─────────────────────────  post-processing  ───────────────────────── */
 function buildComposer(){
+  if(composer){ composer.dispose(); bloomPass.dispose(); }   // "Push it" rebuilds: free the old render targets
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w,s.h), comp.glow, 0.62, 0.38); }
@@ -539,16 +593,24 @@ function setRay(e){
   simU.uMouseOrigin.value.copy(o);
   simU.uMouseDir.value.copy(far.sub(o).normalize());
 }
+const touchIds = new Set();   // touch: a second finger plays the right button (push outward), like right-drag with a mouse
 canvas.addEventListener('pointermove', e=>{
-  setRay(e); stirTarget = pointerDown ? 150 : 70;
+  if(e.isPrimary) setRay(e); stirTarget = pointerDown ? 150 : 70;
   simU.uStirRadial.value = pointerDown ? (pointerBtn===2 ? 1.6 : -1.6) : 0.0;
   lastInput = performance.now();
 });
-canvas.addEventListener('pointerdown', e=>{ pointerDown=true; pointerBtn=e.button; setRay(e); stirTarget=150; lastInput=performance.now(); });
-window.addEventListener('pointerup', ()=>{ pointerDown=false; });
+canvas.addEventListener('pointerdown', e=>{
+  if(e.pointerType==='touch') touchIds.add(e.pointerId);
+  pointerDown=true; pointerBtn = touchIds.size>1 ? 2 : e.button; if(e.isPrimary) setRay(e); stirTarget=150; lastInput=performance.now();
+});
+['pointerup','pointercancel'].forEach(ev=>window.addEventListener(ev, ()=>{ pointerDown=false; }));
+['pointerup','pointercancel'].forEach(ev=>window.addEventListener(ev, e=>touchIds.delete(e.pointerId)));
 canvas.addEventListener('contextmenu', e=>e.preventDefault());
 ['pointerdown','wheel','keydown'].forEach(ev=>window.addEventListener(ev, ()=>lastInput=performance.now(), {passive:true}));
-window.addEventListener('keydown', e=>{ if(e.code==='Space'){ paused=!paused; e.preventDefault(); } });
+const ppBtn = document.getElementById('playpause');
+function setPaused(p){ paused = p; ppBtn.textContent = p ? '▶ Play' : '❚❚ Pause'; ppBtn.setAttribute('aria-pressed', String(p)); }
+ppBtn.addEventListener('click', ()=>setPaused(!paused));
+window.addEventListener('keydown', e=>{ if(e.code==='Space' && e.target===document.body){ setPaused(!paused); e.preventDefault(); } });
 
 /* ─────────────────────────  controls  ───────────────────────── */
 document.getElementById('reseed').addEventListener('click', reseedAll);
@@ -593,6 +655,16 @@ function governor(dtMs){
   geomRef.setDrawRange(0, 2*Math.floor(n*drawFrac));   // 2 verts per filament
 }
 
+/* ─── density-normalised exposure: additive filaments get brighter with filaments per device pixel. Never go
+       brighter than the reference frame (1440×900 stage 1320×684, 2.1M at 0.64 draw, pixel ratio 1 ≈ 1.49/px).
+       Without this a phone (1M on ~160k px) or a full-density 1× screen blows out to white. Retina desktop
+       at the default preset is below the reference, so it is unchanged. ─── */
+const EXPOSURE = 0.011, REF_DENSITY = 1.49;
+function exposureScale(){
+  const s = stageSize(), dens = texSize*texSize*drawFrac / (s.w*s.h*renderer.getPixelRatio());
+  return Math.min(1, REF_DENSITY/dens);
+}
+
 /* ─────────────────────────  resize  ───────────────────────── */
 function onResize(){
   const s=stageSize();
@@ -605,11 +677,11 @@ window.addEventListener('resize', onResize);
 if(window.ResizeObserver){ new ResizeObserver(()=>onResize()).observe(stage); }
 
 /* ─────────────────────────  main loop  ───────────────────────── */
-function animate(){ requestAnimationFrame(animate); const dtMs=clock.getDelta()*1000; frame(Math.min(dtMs/1000,1/45), dtMs); }
+function animate(){ requestAnimationFrame(animate); timer.update(); const dtMs=timer.getDelta()*1000; frame(Math.min(dtMs/1000,1/45), dtMs); }
 function frame(dt, dtMs){
   // stir decay (the field heals after you let go)
   simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25; stirTarget *= 0.86;
-  controls.autoRotate = (performance.now()-lastInput > 6000);
+  controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
   document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
 
   if(!paused){
@@ -632,8 +704,9 @@ function frame(dt, dtMs){
   points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
 
   controls.update();
+  points.material.uniforms.uExposure.value = EXPOSURE*exposureScale();
   composer.render();
-  governor(dtMs);
+  if(!paused) governor(dtMs);   // a paused still frame must not change resolution or draw range
 
   if((frame._f=(frame._f||0)+1)%12===0){
     const fps=Math.round(1000/emaMs), drawn=(texSize*texSize*drawFrac/1e6).toFixed(2);
@@ -658,6 +731,7 @@ try{
     get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), movement:MOVEMENTS[movIdx].name, vortices:vortices.length}; },
   };
   animate();
+  if(REDUCED){ window.__sim.step(360); setPaused(true); }
 }catch(err){
   console.error(err);
   if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the engine.<br><small>'+(err&&err.message||err)+'</small>');

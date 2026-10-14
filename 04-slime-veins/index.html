@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Slime Veins — Physarum Network</title>
+<meta name="description" content="Forty thousand cells, no leader, one network.">
+<link rel="canonical" href="https://paredes.dev/art-sims/04-slime-veins/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Art Simulations">
+<meta property="og:title" content="Slime Veins — Physarum Network">
+<meta property="og:description" content="Forty thousand cells, no leader, one network.">
+<meta property="og:url" content="https://paredes.dev/art-sims/04-slime-veins/">
+<meta property="og:image" content="https://paredes.dev/art-sims/04-slime-veins/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Still frame from the Slime Veins simulation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Slime Veins — Physarum Network">
+<meta name="twitter:description" content="Forty thousand cells, no leader, one network.">
+<meta name="twitter:image" content="https://paredes.dev/art-sims/04-slime-veins/og.jpg">
+<meta name="twitter:image:alt" content="Still frame from the Slime Veins simulation">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="theme-color" content="#070b09">
 <style>
 :root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
 *{box-sizing:border-box}
@@ -17,7 +36,8 @@ h1{font-size:30px;margin:7px 0 2px;font-weight:600}
 .sub{color:var(--muted);font-size:14px;margin:0 0 18px;font-style:italic}
 .stage{position:relative;border-radius:14px;overflow:hidden;
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#000}
-canvas{display:block;max-width:92vw;height:auto}
+canvas{display:block;max-width:100%;height:auto}
+.stage{max-width:100%}
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:840px}
 button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
   padding:9px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
@@ -26,17 +46,20 @@ button:hover{border-color:var(--gold);color:#fff;box-shadow:0 0 18px -4px var(--
 input[type=range]{accent-color:var(--gold);width:120px}
 .caption{max-width:680px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
 .caption b{color:var(--ink);font-weight:600}
-a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
-  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
-a.back:hover{color:var(--gold)}
-.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
-.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+/* ── back link (CONVENTIONS b) ── */
+a.back{position:absolute;top:14px;left:16px;z-index:10;display:inline-block;padding:6px 10px;border-radius:8px;
+  color:var(--muted);text-decoration:none;font-family:ui-monospace,'SF Mono',monospace;font-size:12px;letter-spacing:.08em;
+  background:rgba(7,11,9,.72);border:1px solid rgba(232,196,94,.16)}
+a.back:hover{color:var(--gold);border-color:rgba(232,196,94,.45)}
+a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(--gold2)}
+@media (max-width:900px){a.back{position:static;align-self:flex-start;margin:-10px 0 14px}}
+/* centre the header text when it wraps on narrow screens (CONVENTIONS g) */
+.eyebrow,h1,.sub{text-align:center}
 </style>
 </head>
 <body>
-<a class="back" href="../index.html">&larr; gallery</a>
+<a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 04 · Physarum Stigmergy</div>
-<div class="badge fable">Fable 5</div>
 <h1>Slime Veins</h1>
 <p class="sub">Forty thousand cells, no leader, one network.</p>
 <div class="stage"><canvas id="c"></canvas></div>
@@ -44,6 +67,7 @@ a.back:hover{color:var(--gold)}
   <button id="regen">⟳ Respawn</button>
   <div class="ctl">turn <input id="turn" type="range" min="10" max="80" value="38"></div>
   <div class="ctl">sense <input id="sense" type="range" min="4" max="22" value="11"></div>
+  <button id="playpause" aria-pressed="false">❚❚ Pause</button>
   <button id="save">⤓ Save PNG</button>
 </div>
 <p class="caption">Each agent is a <i>Physarum polycephalum</i> cell: it samples a chemical trail at three sensors, steers
@@ -53,7 +77,7 @@ materials borrow for distributing load and moisture.</p>
 <script>
 const canvas=document.getElementById('c');
 const G=340, DISP=760, S=DISP/G;
-canvas.width=DISP;canvas.height=DISP;canvas.style.maxWidth='92vw';
+canvas.width=DISP;canvas.height=DISP;
 const ctx=canvas.getContext('2d');
 const off=document.createElement('canvas');off.width=G;off.height=G;
 const octx=off.getContext('2d');const img=octx.createImageData(G,G);
@@ -106,10 +130,17 @@ function paint(){const d=img.data;
   octx.putImageData(img,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,DISP,DISP);
 }
 
-let raf;
-function loop(){update();diffuse();paint();raf=requestAnimationFrame(loop);}
+let raf,paused=false;
+const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const WARM=150;   // update+diffuse steps before the still frame (~1.2 s on an M2 Pro; a full vein network)
+function loop(){if(!paused){update();diffuse();paint();}raf=requestAnimationFrame(loop);}
+// settle(): run WARM steps in ~20 ms chunks without drawing, draw once, then idle in the paused loop.
+// Used under reduced motion and when Reseed/Regrow/Respawn is pressed while paused.
+function settle(){cancelAnimationFrame(raf);let i=0;
+  (function chunk(){const t=performance.now();while(i<WARM&&performance.now()-t<20){update();diffuse();i++;}
+    if(i<WARM){raf=requestAnimationFrame(chunk);return;}paint();loop();})();}
 function start(){cancelAnimationFrame(raf);SA=(+turn.value)/100*1.4;TA=(+turn.value)/100*1.4;SD=+sense.value;
-  spawn();loop();}
+  spawn();if(paused)settle();else loop();}
 
 const turn=document.getElementById('turn'),sense=document.getElementById('sense');
 document.getElementById('regen').onclick=start;
@@ -117,6 +148,10 @@ turn.oninput=()=>{SA=(+turn.value)/100*1.4;TA=(+turn.value)/100*1.4;};
 sense.oninput=()=>SD=+sense.value;
 document.getElementById('save').onclick=()=>{const a=document.createElement('a');
   a.download='slime-veins.png';a.href=canvas.toDataURL('image/png');a.click();};
+const ppBtn=document.getElementById('playpause');
+function setPaused(p){paused=p;ppBtn.textContent=p?'▶ Play':'❚❚ Pause';ppBtn.setAttribute('aria-pressed',String(p));}
+ppBtn.addEventListener('click',()=>setPaused(!paused));
+if(REDUCED)setPaused(true);   // reduced motion: start paused; start() then settles and draws one still frame
 start();
 </script>
 </body>

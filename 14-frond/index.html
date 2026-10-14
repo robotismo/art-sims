@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Frond — Lindenmayer System</title>
+<meta name="description" content="A single growth rule, rewritten into itself, unfurls a whole plant.">
+<link rel="canonical" href="https://paredes.dev/art-sims/14-frond/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Art Simulations">
+<meta property="og:title" content="Frond — Lindenmayer System">
+<meta property="og:description" content="A single growth rule, rewritten into itself, unfurls a whole plant.">
+<meta property="og:url" content="https://paredes.dev/art-sims/14-frond/">
+<meta property="og:image" content="https://paredes.dev/art-sims/14-frond/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Still frame from the Frond simulation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Frond — Lindenmayer System">
+<meta name="twitter:description" content="A single growth rule, rewritten into itself, unfurls a whole plant.">
+<meta name="twitter:image" content="https://paredes.dev/art-sims/14-frond/og.jpg">
+<meta name="twitter:image:alt" content="Still frame from the Frond simulation">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="theme-color" content="#070b09">
 <style>
 :root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
 *{box-sizing:border-box}
@@ -17,7 +36,8 @@ h1{font-size:30px;margin:7px 0 2px;font-weight:600}
 .sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
 .stage{position:relative;border-radius:14px;overflow:hidden;
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
-canvas{display:block;max-width:94vw;height:auto}
+canvas{display:block;max-width:100%;height:auto}
+.stage{max-width:100%}
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
 button{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
   padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
@@ -27,17 +47,20 @@ input[type=range]{accent-color:var(--gold);width:120px}
 .val{color:var(--gold2);min-width:42px;text-align:right}
 .caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
 .caption b{color:var(--ink);font-weight:600}
-a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
-  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
-a.back:hover{color:var(--gold)}
-.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
-.badge.fable{color:#cfe3d6;border-color:rgba(150,200,170,.42);background:rgba(150,200,170,.06)}
+/* ── back link (CONVENTIONS b) ── */
+a.back{position:absolute;top:14px;left:16px;z-index:10;display:inline-block;padding:6px 10px;border-radius:8px;
+  color:var(--muted);text-decoration:none;font-family:ui-monospace,'SF Mono',monospace;font-size:12px;letter-spacing:.08em;
+  background:rgba(7,11,9,.72);border:1px solid rgba(232,196,94,.16)}
+a.back:hover{color:var(--gold);border-color:rgba(232,196,94,.45)}
+a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(--gold2)}
+@media (max-width:900px){a.back{position:static;align-self:flex-start;margin:-10px 0 14px}}
+/* centre the header text when it wraps on narrow screens (CONVENTIONS g) */
+.eyebrow,h1,.sub{text-align:center}
 </style>
 </head>
 <body>
-<a class="back" href="../index.html">&larr; gallery</a>
+<a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 14 · Lindenmayer System</div>
-<div class="badge">Opus 4.8</div>
 <h1>Frond</h1>
 <p class="sub">A single growth rule, rewritten into itself, unfurls a whole plant.</p>
 <div class="stage"><canvas id="c"></canvas></div>
@@ -53,9 +76,10 @@ draw / turn / branch commands. Self-similar branching and leaflets emerge from p
 real ferns and compound leaves grow.</p>
 <script>
 const canvas=document.getElementById('c');
+const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const W=760,H=900;
 function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
-  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+  canvas.style.width=W+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
 const ctx=fit();
 
 const RULES={X:'F+[[X]-X]-F[-FX]+X', F:'FF'};
@@ -130,8 +154,10 @@ function draw(){
 
 let raf;
 function tick(){ if(shown<segs.length){ shown+=Math.max(8,segs.length/90); } draw(); }
-function loop(){ tick(); raf=requestAnimationFrame(loop); }
-function start(){ cancelAnimationFrame(raf); build(); loop(); }
+function loop(){ tick(); if(shown<segs.length) raf=requestAnimationFrame(loop); }   // stop once complete: draw() is deterministic, the frame no longer changes
+function start(){ cancelAnimationFrame(raf); build();
+  if(REDUCED){ shown=segs.length; draw(); return; }   // reduced motion: draw the finished frond, no growth animation
+  loop(); }
 
 const angEl=document.getElementById('ang'),angv=document.getElementById('angv');
 const depthEl=document.getElementById('depth'),depthv=document.getElementById('depthv');

@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Murmuration — Reynolds Boids</title>
+<meta name="description" content="Ten thousand wings, no conductor — only three small rules and a hawk in the dusk.">
+<link rel="canonical" href="https://paredes.dev/art-sims/13-murmuration/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Art Simulations">
+<meta property="og:title" content="Murmuration — Reynolds Boids">
+<meta property="og:description" content="Ten thousand wings, no conductor — only three small rules and a hawk in the dusk.">
+<meta property="og:url" content="https://paredes.dev/art-sims/13-murmuration/">
+<meta property="og:image" content="https://paredes.dev/art-sims/13-murmuration/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Still frame from the Murmuration simulation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Murmuration — Reynolds Boids">
+<meta name="twitter:description" content="Ten thousand wings, no conductor — only three small rules and a hawk in the dusk.">
+<meta name="twitter:image" content="https://paredes.dev/art-sims/13-murmuration/og.jpg">
+<meta name="twitter:image:alt" content="Still frame from the Murmuration simulation">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="theme-color" content="#070b09">
 <style>
 :root{--bg:#070b09;--gold:#e8c45e;--gold2:#f6e6a8;--green:#2f9e6f;--ink:#d7e0d6;--muted:#7d8c82;}
 *{box-sizing:border-box}
@@ -13,14 +32,12 @@ body{background:radial-gradient(120% 100% at 50% -10%,#0d1512 0%,#070b09 62%);co
   align-items:center;padding:30px 18px 70px}
 .eyebrow{letter-spacing:.34em;text-transform:uppercase;font-size:11px;color:var(--gold);
   font-family:ui-monospace,'SF Mono',monospace;opacity:.85}
-.badge{display:inline-block;margin-top:10px;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;
-  letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(232,196,94,.32);
-  padding:4px 11px;border-radius:20px;background:rgba(232,196,94,.05)}
 h1{font-size:30px;margin:9px 0 2px;font-weight:600}
 .sub{color:var(--muted);font-size:14px;margin:0 0 16px;font-style:italic}
 .stage{position:relative;border-radius:14px;overflow:hidden;
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
-canvas{display:block;max-width:94vw;height:auto;cursor:crosshair}
+canvas{display:block;max-width:100%;height:auto;cursor:crosshair;touch-action:none}
+.stage{max-width:100%}
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
 button,select{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
   padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
@@ -30,15 +47,20 @@ input[type=range]{accent-color:var(--gold);width:120px}
 .val{color:var(--gold2);min-width:42px;text-align:right}
 .caption{max-width:700px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.65;margin-top:8px}
 .caption b{color:var(--ink);font-weight:600}
-a.back{position:fixed;top:16px;left:18px;color:var(--muted);text-decoration:none;
-  font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em}
-a.back:hover{color:var(--gold)}
+/* ── back link (CONVENTIONS b) ── */
+a.back{position:absolute;top:14px;left:16px;z-index:10;display:inline-block;padding:6px 10px;border-radius:8px;
+  color:var(--muted);text-decoration:none;font-family:ui-monospace,'SF Mono',monospace;font-size:12px;letter-spacing:.08em;
+  background:rgba(7,11,9,.72);border:1px solid rgba(232,196,94,.16)}
+a.back:hover{color:var(--gold);border-color:rgba(232,196,94,.45)}
+a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(--gold2)}
+@media (max-width:900px){a.back{position:static;align-self:flex-start;margin:-10px 0 14px}}
+/* centre the header text when it wraps on narrow screens (CONVENTIONS g) */
+.eyebrow,h1,.sub{text-align:center}
 </style>
 </head>
 <body>
-<a class="back" href="../index.html">&larr; gallery</a>
+<a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 13 · Vol. III · Emergence</div>
-<div class="badge">Opus 4.8 · ultracode</div>
 <h1>Murmuration</h1>
 <p class="sub">Ten thousand wings, no conductor — only three small rules and a hawk in the dusk.</p>
 <div class="stage"><canvas id="c"></canvas></div>
@@ -48,18 +70,19 @@ a.back:hover{color:var(--gold)}
   <div class="ctl">cohesion <input id="cohesion" type="range" min="0" max="2.4" step="0.05" value="1.0"><span class="val" id="cohesionv">1.00</span></div>
   <div class="ctl">alignment <input id="align" type="range" min="0" max="2.4" step="0.05" value="1.2"><span class="val" id="alignv">1.20</span></div>
   <button id="hawk">✕ Hawk: On</button>
+  <button id="playpause" aria-pressed="false">❚❚ Pause</button>
   <button id="save">⤓ Save PNG</button>
 </div>
 <p class="caption">Each bird sees only neighbours within a small radius and obeys three Reynolds rules —
 <b>separation</b> (avoid crowding), <b>alignment</b> (match headings), <b>cohesion</b> (drift toward the local centre).
 Neighbours are found through a <b>uniform spatial-hash grid</b>, so the flock stays O(n) at thousands of birds.
-A <b>predator</b> (move the mouse over the canvas, or let it wander) triggers fleeing — the rolling flash-waves of a
+A <b>predator</b> (<span id="hawkhint">move the mouse over the canvas</span>, or let it wander) triggers fleeing — the rolling flash-waves of a
 real <b>starling murmuration</b> emerge with no leader at all.</p>
 <script>
 const canvas=document.getElementById('c');
 const W=820,H=620;
 function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
-  canvas.style.width=W+'px';canvas.style.height=H+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+  canvas.style.width=W+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
 const ctx=fit();
 
 /* ───────── tuning ───────── */
@@ -290,7 +313,12 @@ function draw(){
 function tick(){ simulate(); draw(); }
 
 let raf;
-function loop(){ tick(); raf=requestAnimationFrame(loop); }
+const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let paused=false;
+function loop(){ if(!paused) tick(); raf=requestAnimationFrame(loop); }
+const ppBtn=document.getElementById('playpause');
+function setPaused(p){ paused=p; ppBtn.textContent=p?'▶ Play':'❚❚ Pause'; ppBtn.setAttribute('aria-pressed',String(p)); }
+ppBtn.addEventListener('click',()=>setPaused(!paused));
 function start(){ cancelAnimationFrame(raf); ctx.fillStyle='#070b09'; ctx.fillRect(0,0,W,H); loop(); }
 
 /* ───────── controls ───────── */
@@ -303,13 +331,18 @@ countEl.oninput=()=>{ countv.textContent=countEl.value; seed(+countEl.value); };
 cohEl.oninput=()=>{ W_COH=+cohEl.value; cohv.textContent=W_COH.toFixed(2); };
 aliEl.oninput=()=>{ W_ALI=+aliEl.value; aliv.textContent=W_ALI.toFixed(2); };
 hawkBtn.onclick=()=>{ hawkOn=!hawkOn; hawkBtn.textContent=(hawkOn?'✕ Hawk: On':'○ Hawk: Off'); };
-document.getElementById('regen').onclick=()=>{ seed(N); start(); };
+document.getElementById('regen').onclick=()=>{ seed(N); start();
+  if(paused){ for(let i=0;i<120;i++) tick(); } };   // paused: settle the new flock so the frame is not left blank
 document.getElementById('save').onclick=()=>{ const a=document.createElement('a');
   a.download='murmuration.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
 
-canvas.addEventListener('pointermove',e=>{ const r=canvas.getBoundingClientRect();
-  mouseX=(e.clientX-r.left)*(W/r.width); mouseY=(e.clientY-r.top)*(H/r.height); mouseIn=true; });
-canvas.addEventListener('pointerleave',()=>{ mouseIn=false; });
+function aim(e){ const r=canvas.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(W/r.width); mouseY=(e.clientY-r.top)*(H/r.height); mouseIn=true; }
+canvas.addEventListener('pointermove',aim);
+canvas.addEventListener('pointerdown',aim);          // touch: a tap or drag places the hawk
+['pointerleave','pointercancel'].forEach(ev=>canvas.addEventListener(ev,()=>{ mouseIn=false; }));
+canvas.addEventListener('pointerup',e=>{ if(e.pointerType!=='mouse') mouseIn=false; });
+if(matchMedia('(pointer: coarse)').matches) document.getElementById('hawkhint').textContent='touch and drag on the canvas';
 
 /* ───────── headless hook: rAF may be paused in preview, so expose manual stepping ───────── */
 window.__sim={
@@ -320,6 +353,7 @@ window.__sim={
 
 seed(N);
 start();
+if(REDUCED){ window.__sim.step(120); setPaused(true); }   // reduced motion: settle the flock, then hold a still frame
 </script>
 </body>
 </html>
