@@ -613,7 +613,17 @@ if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').text
 const ppBtn = document.getElementById('playpause');
 function setPaused(p){ paused = p; ppBtn.textContent = p ? '▶ Play' : '❚❚ Pause'; ppBtn.setAttribute('aria-pressed', String(p)); }
 ppBtn.addEventListener('click', ()=>setPaused(!paused));
-window.addEventListener('keydown', e=>{ if(e.code==='Space' && e.target===document.body){ setPaused(!paused); e.preventDefault(); } });
+// Space toggles pause. A mouse or touch click drops focus from the button it hit (Safari never focuses it), so a
+// later Space pauses instead of re-firing that button ("Push it" again). A button reached by keyboard (Tab) keeps
+// focus, and Space activates it as usual; Space in a text field is left alone.
+document.addEventListener('click', e=>{ const b = e.target.closest && e.target.closest('button'); if(b && e.detail>0) b.blur(); });
+window.addEventListener('keydown', e=>{
+  if(e.code!=='Space') return;
+  const a = document.activeElement, tag = a ? a.tagName : '';
+  if(tag==='BUTTON' || tag==='TEXTAREA' || tag==='SELECT' || (a && a.isContentEditable) || (tag==='INPUT' && a.type!=='range')) return;
+  e.preventDefault();
+  if(!e.repeat) setPaused(!paused);
+});
 const flingBtn = document.getElementById('fling');
 flingBtn.addEventListener('click', ()=>{
   flingOut = !flingOut; flingBtn.classList.toggle('on', flingOut);
