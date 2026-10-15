@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Genesis — Newtonian N-Body Gravity</title>
-<meta name="description" content="Two galaxies fall through each other and fling a million grains of light into tidal tails.">
+<meta name="description" content="Two galaxies swing past each other and fling a million grains of light into tidal tails.">
 <link rel="canonical" href="https://paredes.dev/art-sims/07-genesis/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Art Simulations">
 <meta property="og:title" content="Genesis — Newtonian N-Body Gravity">
-<meta property="og:description" content="Two galaxies fall through each other and fling a million grains of light into tidal tails.">
+<meta property="og:description" content="Two galaxies swing past each other and fling a million grains of light into tidal tails.">
 <meta property="og:url" content="https://paredes.dev/art-sims/07-genesis/">
 <meta property="og:image" content="https://paredes.dev/art-sims/07-genesis/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -17,7 +17,7 @@
 <meta property="og:image:alt" content="Still frame from the Genesis simulation">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Genesis — Newtonian N-Body Gravity">
-<meta name="twitter:description" content="Two galaxies fall through each other and fling a million grains of light into tidal tails.">
+<meta name="twitter:description" content="Two galaxies swing past each other and fling a million grains of light into tidal tails.">
 <meta name="twitter:image" content="https://paredes.dev/art-sims/07-genesis/og.jpg">
 <meta name="twitter:image:alt" content="Still frame from the Genesis simulation">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
@@ -83,7 +83,7 @@ a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(
 <a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 07 · Vol. II · Cosmos</div>
 <h1>Genesis</h1>
-<p class="sub">Two galaxies fall through each other and fling a million grains of light into tidal tails.</p>
+<p class="sub">Two galaxies swing past each other and fling a million grains of light into tidal tails.</p>
 
 <div class="stage" id="stage">
   <canvas id="c"></canvas>
@@ -138,15 +138,19 @@ const PRESETS = [
 ];
 const LOW_END = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let presetIdx = LOW_END ? 0 : 2;   // desktop: 1M default (the dense glow reads richer than the sparse field); phones/tablets start at the smallest preset
+let presetIdx = LOW_END ? 0 : 2;   // desktop: 1M default; phones/tablets start at the smallest preset
 const ui = {
   grav:  30.0,      // uG
   suns:  2,         // number of galaxies (cores), each wrapped in its own dust disk
   encounter: 'flyby', // 'flyby' = grazing single pass (tidal tails) | 'merge' = bound dance
   drift: 16/100,    // dt time-scaling
-  glow:  LOW_END ? 0.40 : 0.74,   // bloom strength (phones/tablets: the small stage at pixel ratio 1 packs the dust densely and washes out at 0.74)
+  glow:  0.74,      // bloom strength (dust brightness is normalised per pixel, so one default fits every screen)
   trails: false,    // the velocity-streak segments ARE the trails; afterimage would re-smear to fog
 };
+// Sim time per real second. At the default drift the flyby reaches pericentre ~9 s after a (re)seed,
+// throws its tails by ~14 s and replays every ~34 s (see seedBodies / simStep).
+const TIME = 2.0;
+const simRate = () => TIME*(0.4+1.2*ui.drift);
 
 /* ─────────────────────────  shared GLSL chunks  ───────────────────────── */
 const HASH = `
@@ -199,9 +203,10 @@ vec3 curlNoise(vec3 p){
 }`;
 
 // seed positions (shared by both compute shaders so reseed is consistent)
-// Tracer dust seeds into a large spherical shell with a small tangential swirl.
+// Each tracer seeds onto a thin two-armed disk around its own galaxy core, on a circular orbit.
 const SEED = `
-uniform float uBound, uGalaxyR, uG;
+uniform float uBound, uGalaxyR, uG, uSoft;
+uniform float uReseed;         // 1 for one compute step = every tracer re-seeds onto the disks (Reseed / encounter loop)
 uniform int   uNumBodies;
 uniform vec4  uBodies[48];     // xyz = position, w = mass
 uniform vec3  uBodyVel[48];    // core bulk velocity (so dust seeds onto a MOVING galaxy)
@@ -226,18 +231,32 @@ vec3 seedPosition(vec2 ref, float t){
   int k = galaxyOf(ref);
   vec3 c = coreData(k).xyz;
   vec3 h = hash33(vec3(ref*vec2(443.7,191.3), t*0.017));
-  float rr = uGalaxyR*(0.10 + 0.90*sqrt(h.x));     // a flat disk around this galaxy's core
+  // a disk only a little denser toward the core (surface density ~ r^-0.33): ~2/3 of the grains sit in the
+  // outer half, where the tides strip them, so the tails stay bright; the bulge comes from the nucleus + bloom
+  float rr = uGalaxyR*(0.05 + 0.95*pow(h.x, 0.6));
+  rr *= 1.0 + 0.35*pow(fract(h.z*13.7), 3.0);       // a sparse fringe past R, so the rim fades instead of ending in a hard edge
   float a  = h.y*6.28318530718;
-  float zz = (h.z-0.5)*uGalaxyR*0.10;
+  // two loose trailing spiral arms (55% of the grains), so each galaxy reads as a spiral before the encounter shears it
+  float h4 = hash11(ref.x*71.3 + ref.y*29.9 + t*0.031);
+  if(h4 < 0.55){
+    float arm = step(0.5, fract(h.y*2.0))*3.14159265;
+    float spread = (fract(h.y*7.31) - 0.5)*0.9;
+    a = arm + 2.2*log(rr/uGalaxyR + 0.05) + spread;   // log spiral, pitch ~24 deg; CCW rotation -> arms trail
+  }
+  float zz = (h.z-0.5)*uGalaxyR*0.06;
   return c + vec3(rr*cos(a), rr*sin(a), zz);
 }
 vec3 seedVelocity(vec2 ref, vec3 sp){
   int k = galaxyOf(ref);
   vec4 cd = coreData(k);
   vec3 rel = sp - cd.xyz;
-  float r = length(rel.xy)+1.0;
+  float r = max(length(rel.xy), 1e-3);
   vec2 rh = rel.xy/r; vec2 th = vec2(-rh.y, rh.x);
-  float vc = sqrt(uG*cd.w/r);                      // circular orbit about its own core ...
+  // circular speed in the SAME softened (Plummer) field the velocity shader integrates:
+  // v^2 = G*m*r^2/(r^2+s^2)^1.5. The bare Kepler sqrt(G*m/r) is far faster than that inside ~2s,
+  // which flung the inner disk out and puffed every galaxy into a round halo.
+  float r2 = r*r + uSoft*uSoft;
+  float vc = sqrt(uG*cd.w*r*r/(r2*sqrt(r2)));     // circular orbit about its own core ...
   return vec3(th*vc, 0.0) + coreVel(k);            // ... carried along by the core's bulk motion
 }`;
 
@@ -245,7 +264,7 @@ vec3 seedVelocity(vec2 ref, vec3 sp){
 // Massless tracers: a = sum_b G*m_b * d / (r2*sqrt(r2)), r2 = dot(d,d)+uSoft^2.
 const VELOCITY_FRAG = `
 uniform float uTime, uDelta;
-uniform float uSoft, uKillRadius, uMaxSpeed, uDiskK;
+uniform float uKillRadius, uMaxSpeed, uDiskK;
 uniform vec3  uMouseOrigin, uMouseDir;
 uniform float uStirStrength, uStirRadius, uStirRadial;
 ${HASH}
@@ -287,7 +306,7 @@ void main(){
   vec4 V  = texture2D(textureVelocity, uv);
   vec3 vel = V.xyz; float age = V.w;
 
-  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+  bool reseed = (uReseed>0.5) || (life<=0.0) || (length(pos)>uKillRadius);
 
   if(reseed){
     vec3 sp = seedPosition(uv, uTime);
@@ -296,10 +315,14 @@ void main(){
     return;
   }
 
-  vec3 a = gravityAccel(pos);
-  a += pointerForce(pos);
-  a.z += -pos.z*uDiskK - vel.z*0.5;         // confine dust to a thin disk so spiral wakes read face-on
-  vel = vel*0.9998 + a*uDelta;              // near-conservative -> orbits persist & stretch into streams
+  // Symplectic drift-kick. Both passes read last step's textures, so the position pass drifts with the OLD
+  // velocity (x' = x + v*dt). Kicking with the force at that drifted x' (cores already advanced to the same step)
+  // makes the pair symplectic: orbits neither spiral out nor need a per-frame damping that ran faster at 120 Hz.
+  vec3 pn = pos + vel*uDelta;
+  vec3 a = gravityAccel(pn);
+  a += pointerForce(pn);
+  a.z += -pn.z*uDiskK - vel.z*0.5;          // confine dust to a thin disk so spiral wakes read face-on
+  vel += a*uDelta;                          // conservative -> orbits persist & stretch into streams
   vel = clampLen(vel, uMaxSpeed);
   age += uDelta;
   gl_FragColor = vec4(vel, age);
@@ -316,7 +339,7 @@ void main(){
   vec3 pos = P.xyz; float life = P.w;
   vec3 vel = texture2D(textureVelocity, uv).xyz;
 
-  bool reseed = (life<=0.0) || (length(pos)>uKillRadius);
+  bool reseed = (uReseed>0.5) || (life<=0.0) || (length(pos)>uKillRadius);
   if(reseed){
     pos  = seedPosition(uv, uTime);
     life = 0.55 + 0.45*hash11(uv.x*51.3+uv.y*19.1+uTime*0.013);
@@ -333,7 +356,7 @@ void main(){
 const POINTS_VERT = `
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
-uniform float uPixelRatio, uSpeedScale, uTrail;
+uniform float uSpeedScale, uTrail;
 attribute vec2 reference;
 attribute float aEnd;                  // 0 = head (at pos), 1 = tail (back along velocity)
 varying float vSpeed; varying float vLife; varying float vDepth; varying float vEnd;
@@ -351,7 +374,7 @@ void main(){
 
 const POINTS_FRAG = `
 precision highp float;
-uniform float uExposure, uFogDensity, uWarm;
+uniform float uExposure, uFogDensity, uWarm, uCamDist;
 varying float vSpeed; varying float vLife; varying float vDepth; varying float vEnd;
 vec3 ramp(float t){
   // emerald -> teal -> gold -> pale -> white  (authored in linear space)
@@ -371,10 +394,10 @@ void main(){
   float t = clamp(vSpeed + uWarm*0.18, 0.0, 1.0);
   vec3 col = ramp(t);
   float fade = smoothstep(0.0,0.18,vLife);
-  float fog  = exp(-vDepth*uFogDensity);
+  float fog  = min(exp(-(vDepth-uCamDist)*uFogDensity), 1.6);   // depth cue relative to the focus, not the zoom
   float streak = 1.0 - vEnd; streak *= streak;   // bright at the head, fading down the tail
   vec3 c = col * fade * fog * uExposure * (0.16 + 0.84*streak);
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(min(c, vec3(1.0)), 1.0);   // the screen blend needs src <= 1 (the half-float target never clamps)
 }`;
 
 /* ─────────────────────────  body (sun) render shaders  ───────────────────────── */
@@ -386,8 +409,8 @@ void main(){
   vMass = aMass;
   vec4 mv = modelViewMatrix * vec4(position,1.0);
   gl_Position = projectionMatrix * mv;
-  float size = uPointSize*uPixelRatio*(360.0/max(-mv.z,1.0))*(0.6+0.9*sqrt(aMass));
-  gl_PointSize = clamp(size, 2.0, 90.0);
+  float size = uPointSize*uPixelRatio*(360.0/max(-mv.z,1.0))*(0.5+0.12*sqrt(aMass));   // a compact nucleus; bloom adds the halo
+  gl_PointSize = clamp(size, 2.0, 64.0);
 }`;
 
 const BODY_FRAG = `
@@ -402,7 +425,7 @@ void main(){
   float halo = exp(-r2*2.2)*0.5;
   float a = core + halo;
   vec3 hot = vec3(1.5,1.34,1.05);          // hot white-gold sun core (HDR)
-  vec3 c = hot * a * uExposure * (0.8+0.5*sqrt(vMass));
+  vec3 c = hot * a * uExposure * (0.6+0.12*sqrt(vMass));
   gl_FragColor = vec4(c, a);
 }`;
 
@@ -449,9 +472,28 @@ scene = new THREE.Scene();
 scene.background = makeBackgroundTexture();
 
 { const s=stageSize(); camera = new THREE.PerspectiveCamera(56, s.w/s.h, 1, 5000); }
-camera.position.set(0, 70, 300);
+// The galaxies orbit in the xy plane. Make z the camera's up axis BEFORE OrbitControls reads it, so drag and the
+// idle auto-orbit turn the view around the disk normal (a turntable) instead of tipping the disks edge-on.
+camera.up.set(0, 0, 1);
+const CAM_TILT = 0.56;             // view ~32° off face-on: the tails read flat, the disks still look 3-D
+let camTouched = false;            // once the user orbits or zooms, stop re-fitting the camera on resize
+function fitDistance(){
+  // frame about ±100 units vertically and ±105 horizontally (the tails swing through both axes as the view turns);
+  // a merger's ring of cores and wider disks needs ~1.35x that
+  const s=stageSize(), t=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), asp=s.w/s.h;
+  const m=(ui.encounter==='flyby') ? 1.0 : 1.35;
+  return m*Math.max(100/t, 105/(t*asp));
+}
+function fitCamera(){        // keep the current viewing direction (the auto-orbit may have turned it); set only the distance
+  const dir = camera.position.lengthSq()>0 ? camera.position.clone().normalize() : new THREE.Vector3(0, -Math.sin(CAM_TILT), Math.cos(CAM_TILT));
+  camera.position.copy(dir.multiplyScalar(fitDistance()));
+  camera.lookAt(0,0,0);
+}
+camera.position.set(0, -Math.sin(CAM_TILT), Math.cos(CAM_TILT));
+fitCamera();
 
 controls = new OrbitControls(camera, renderer.domElement);
+controls.addEventListener('start', ()=>{ camTouched = true; });
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.minDistance = 40;
@@ -471,9 +513,10 @@ function makeBackgroundTexture(){
 /* ─────────────────────────  CPU bodies (the suns)  ───────────────────────── */
 const SOFT_BODY = 12.0;            // softening among cores (close passes don't slingshot to infinity)
 const K_SPRING = 0.0003;           // tiny central spring keeps the encounter in frame
-const BODY_DAMP = 0.9999;          // near-conservative: the galaxies keep orbiting & re-passing
+const BODY_DAMP = 0.01;            // per unit of sim time (was per frame, so it bled 2x faster at 120 Hz)
 const BODY_MAXR = BOUND*1.7;       // reflect any runaway core back in
-const GALAXY_R = 30.0;             // dust-disk radius around each core
+const GALAXY_R = 30.0;             // dust-disk radius around each core (merge)
+const FLYBY_R  = 20.0;             // dust-disk radius in a flyby: ~2/3 of the pericentre, the Toomre & Toomre ratio for long tails
 let bodies = [];                   // [{pos:Vector3, vel:Vector3, mass}]
 const bodyUniformArr = (() => { const a=[]; for(let i=0;i<MAX_BODIES;i++) a.push(new THREE.Vector4()); return a; })();
 const bodyVelArr     = (() => { const a=[]; for(let i=0;i<MAX_BODIES;i++) a.push(new THREE.Vector3()); return a; })();
@@ -484,12 +527,15 @@ function seedBodies(count){
   if(ui.encounter==='flyby'){
     // GRAZING FLYBY: two galaxies fall in offset by an impact parameter, swing past once, and recede,
     // each drawing a long trailing tidal tail (the classic Antennae two-tail figure).
-    const D=66.0, b=22.0;                              // approach half-separation, impact parameter (offset)
-    const vpar=Math.sqrt(2.0*ui.grav*104.0/(2.0*D));   // parabolic relative speed at this separation
-    const vx=vpar*0.55;                                // ~1.1× parabolic -> a single HYPERBOLIC pass (recedes)
-    // y-offset gives the impact parameter; the offset sign makes the pass PROGRADE with the CCW disks -> strong tails
-    bodies.push({pos:new THREE.Vector3(-D, -b, 0), vel:new THREE.Vector3(+vx, 0, 0), mass:58.0});
-    bodies.push({pos:new THREE.Vector3(+D, +b, 0), vel:new THREE.Vector3(-vx, 0, 0), mass:46.0});
+    // Start ~85 apart (the disks clearly separate) on a near-parabolic orbit whose pericentre (~31) is ~1.5 disk radii:
+    // the disks graze rather than plough through each other, so the outer dust is drawn into a bridge and two long tails.
+    const D=32.0, b=28.0;                              // approach half-separation, half impact offset
+    const vpar=Math.sqrt(2.0*ui.grav*104.0/Math.hypot(2.0*D, 2.0*b));   // parabolic relative speed at this separation
+    const vx=vpar*0.85*0.5;                            // 0.85x parabolic: bound, so the pair swings apart and stays in frame
+    // the offset sign makes the pass PROGRADE with the CCW disks -> strong tails
+    const rot=(v)=>v.applyAxisAngle(new THREE.Vector3(0,0,1), -1.15);   // turn the figure so the tails open across a wide stage
+    bodies.push({pos:rot(new THREE.Vector3(-D, -b, 0)), vel:rot(new THREE.Vector3(+vx, 0, 0)), mass:58.0});
+    bodies.push({pos:rot(new THREE.Vector3(+D, +b, 0)), vel:rot(new THREE.Vector3(-vx, 0, 0)), mass:46.0});
   } else {
     // MERGE: a few massive cores on a near-stable eccentric binary -> shearing arms, then a slow merger
     const n = Math.max(2, Math.min(6, count|0));
@@ -505,13 +551,13 @@ function seedBodies(count){
       bodies.push({pos:t.pos, vel:new THREE.Vector3(-Math.sin(t.ang)*vc, Math.cos(t.ang)*vc, 0), mass:t.mass});
     }
   }
-  // zero net momentum so the encounter stays centred in frame
-  const P=new THREE.Vector3(); let MT=0;
-  for(const b of bodies){ P.addScaledVector(b.vel,b.mass); MT+=b.mass; }
-  P.multiplyScalar(1/MT);
-  for(const b of bodies) b.vel.sub(P);
+  // zero net momentum, and put the centre of mass at the origin, so the encounter stays centred in frame
+  const P=new THREE.Vector3(), C=new THREE.Vector3(); let MT=0;
+  for(const b of bodies){ P.addScaledVector(b.vel,b.mass); C.addScaledVector(b.pos,b.mass); MT+=b.mass; }
+  P.multiplyScalar(1/MT); C.multiplyScalar(1/MT);
+  for(const b of bodies){ b.vel.sub(P); b.pos.sub(C); }
   // smaller disks in flyby so the tails stand clear of the cores
-  if(simU) simU.uGalaxyR.value = (ui.encounter==='flyby') ? 21.0 : GALAXY_R;
+  if(simU) simU.uGalaxyR.value = (ui.encounter==='flyby') ? FLYBY_R : GALAXY_R;
 }
 
 function stepBodies(dt){
@@ -533,13 +579,14 @@ function stepBodies(dt){
     aix-=K_SPRING*pi.x; aiy-=K_SPRING*pi.y; aiz-=K_SPRING*pi.z;
     ax[i]=aix; ay[i]=aiy; az[i]=aiz;
   }
-  // semi-implicit (symplectic) Euler with clamped dt, then reflect/clamp at max radius
-  const sdt=Math.min(dt,1/45);
+  // semi-implicit (symplectic) Euler, then reflect/clamp at max radius. dt is already the scaled sim step (the real
+  // frame time is capped at 1/45 s in animate), and the dust uses the very same step, so the cores never lag the dust.
+  const sdt=dt, damp=Math.exp(-BODY_DAMP*sdt);
   for(let i=0;i<N;i++){
     const b=bodies[i];
-    b.vel.x=(b.vel.x+ax[i]*sdt)*BODY_DAMP;
-    b.vel.y=(b.vel.y+ay[i]*sdt)*BODY_DAMP;
-    b.vel.z=(b.vel.z+az[i]*sdt)*BODY_DAMP;
+    b.vel.x=(b.vel.x+ax[i]*sdt)*damp;
+    b.vel.y=(b.vel.y+ay[i]*sdt)*damp;
+    b.vel.z=(b.vel.z+az[i]*sdt)*damp;
     b.pos.x+=b.vel.x*sdt; b.pos.y+=b.vel.y*sdt; b.pos.z+=b.vel.z*sdt;
     const r=b.pos.length();
     if(r>BODY_MAXR){
@@ -577,6 +624,7 @@ function buildBodyPoints(){
     transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
   });
   bodyPoints = new THREE.Points(bodyGeom, bodyMat);
+  bodyPoints.renderOrder = 1;
   bodyPoints.frustumCulled = false;
   scene.add(bodyPoints);
   updateBodyGeom();
@@ -600,8 +648,9 @@ function updateBodyGeom(){
 function makeSimUniforms(){
   return {
     uTime:{value:0}, uDelta:{value:0},
-    uG:{value:ui.grav}, uSoft:{value:9.0}, uMaxSpeed:{value:120.0}, uDiskK:{value:0.5},
-    uBound:{value:BOUND}, uGalaxyR:{value:(ui.encounter==='flyby')?21.0:GALAXY_R}, uKillRadius:{value:KILL}, uLifeRate:{value:0.04},
+    uG:{value:ui.grav}, uSoft:{value:4.0}, uMaxSpeed:{value:120.0}, uDiskK:{value:0.5}, uReseed:{value:0.0},
+    // lifetimes of ~25-130 sim units: ~3/4 of the grains outlive one 40-unit encounter (the loop re-seeds them all), so the tails keep their dust
+    uBound:{value:BOUND}, uGalaxyR:{value:(ui.encounter==='flyby')?FLYBY_R:GALAXY_R}, uKillRadius:{value:KILL}, uLifeRate:{value:0.015},
     uNumBodies:{value:Math.min(bodies.length,MAX_BODIES)},
     uBodies:{value:bodyUniformArr}, uBodyVel:{value:bodyVelArr},
     uMouseOrigin:{value:new THREE.Vector3()}, uMouseDir:{value:new THREE.Vector3(0,0,-1)},
@@ -625,11 +674,9 @@ function buildSim(size){
   gpu.setVariableDependencies(posVar, [posVar, velVar]);
 
   simU = makeSimUniforms();
-  // share the SAME uniform objects across both materials -> one update point
-  for(const k in simU){ velVar.material.uniforms[k] = simU[k]; }
-  for(const k of ['uTime','uDelta','uKillRadius','uLifeRate','uBound','uGalaxyR','uNumBodies','uBodies']){
-    posVar.material.uniforms[k] = simU[k];
-  }
+  // share the SAME uniform objects across both materials -> one update point (both include SEED, so both need
+  // every seed uniform: uG, uSoft, uBodyVel, uReseed ... a whitelist here once left the position pass behind)
+  for(const k in simU){ velVar.material.uniforms[k] = simU[k]; posVar.material.uniforms[k] = simU[k]; }
 
   let err = gpu.init();
   if(err !== null){
@@ -644,20 +691,12 @@ function buildSim(size){
 }
 
 function seedTextures(dtPos, dtVel, size){
+  // Every grain starts with life 0, so the first compute step seeds it on the GPU onto its galaxy's disk, on a
+  // circular orbit (seedPosition / seedVelocity). The old CPU seed put all of them in a 60-110 unit spherical shell
+  // around the origin that lived 15-85 s: uDiskK flattened it into one face-on disk ~2/3 of the stage wide, the
+  // washed-out glow that hid both galaxies. Until that first step, life 0 also draws nothing (fade = 0).
   const p = dtPos.image.data, v = dtVel.image.data;
-  for(let i=0;i<size*size;i++){
-    const k=i*4;
-    // initial outer spherical shell; tracers fall in toward the suns over the first seconds
-    const u=Math.random()*2-1, th=Math.random()*Math.PI*2, rr=BOUND*(0.55+0.45*Math.random());
-    const s=Math.sqrt(1-u*u);
-    const px=Math.cos(th)*s*rr, py=u*rr, pz=Math.sin(th)*s*rr;
-    p[k  ]=px; p[k+1]=py; p[k+2]=pz;
-    p[k+3]=0.55+0.45*Math.random();             // life
-    // small tangential velocity about Y -> initial swirl
-    const tx=-pz, tz=px; const tl=Math.hypot(tx,tz)+1e-3;
-    v[k  ]=(tx/tl)*2.2; v[k+1]=0; v[k+2]=(tz/tl)*2.2;
-    v[k+3]=Math.random()*5;                      // age
-  }
+  p.fill(0); v.fill(0);
 }
 
 function buildPoints(size){
@@ -681,22 +720,43 @@ function buildPoints(size){
   const mat = new THREE.ShaderMaterial({
     uniforms:{
       texturePosition:{value:null}, textureVelocity:{value:null},
-      uPixelRatio:{value:renderer.getPixelRatio()}, uTrail:{value:2.4},
-      uSpeedScale:{value:40.0}, uExposure:{value:LOW_END ? 0.02 : 0.04}, uFogDensity:{value:0.0019}, uWarm:{value:0.0},   // LOW_END: half exposure, see ui.glow
+      // streak = 0.22 sim units of travel (~2-3 world units): short enough that a disk grain reads as a grain, not a
+      // chord across its whole disk (2.4 drew each one ~25 units long, inside a 21-unit disk)
+      uTrail:{value:0.22}, uSpeedScale:{value:18.0},
+      uExposure:{value:0.0}, uFogDensity:{value:0.0019}, uWarm:{value:0.0}, uCamDist:{value:200.0},   // uExposure: dustExposure()
     },
     vertexShader: POINTS_VERT, fragmentShader: POINTS_FRAG,
-    transparent:true, blending:THREE.AdditiveBlending, depthTest:false, depthWrite:false,
+    // SCREEN blend (dst' = src + dst*(1-src)): n faint grains build up to 1-(1-s)^n ≈ 1-exp(-n*s), so a dense disk
+    // rolls off toward ~1 with its gradient intact while a thin tail still adds linearly. Plain additive put the disks
+    // at 5-10x the tails, blew them out flat and bloomed them over the whole stage.
+    transparent:true, blending:THREE.CustomBlending, blendEquation:THREE.AddEquation,
+    blendSrc:THREE.OneFactor, blendDst:THREE.OneMinusSrcColorFactor, depthTest:false, depthWrite:false,
   });
   points = new THREE.LineSegments(geom, mat);   // GL_LINES: each grain is one velocity streak
+  points.renderOrder = 0;                       // dust first; the additive HDR nuclei go on top (renderOrder 1)
   points.frustumCulled = false;
   scene.add(points);
+}
+
+// Per-pixel dust brightness. The dust is ~1M blended 1-px GL lines, so the light that lands on each CSS pixel grows
+// with the grain count, with the world units packed into a pixel (small stages, zoomed out) and shrinks as 1/pixelRatio
+// (a GL line is one DEVICE pixel wide). Fold all three back out so phones, Retina, Push it and zoom share one look.
+const DUST_EXPOSURE = 0.024, K_REF = 3.2;   // K_REF: CSS px per world unit at the fitted desktop view
+function dustExposure(){
+  const s=stageSize(), d=camera.position.distanceTo(controls.target);
+  const k=s.h/(2*d*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)));
+  const n=Math.max(1, texSize*texSize*drawFrac);
+  // zoomed far in, the grains spread apart: stop compensating past 2.5x, so each one stays a faint grain, not a spark
+  return DUST_EXPOSURE*Math.min(k/K_REF, 2.5)*(1048576/n)*renderer.getPixelRatio();
 }
 
 /* ─────────────────────────  post-processing  ───────────────────────── */
 function buildComposer(){
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w, s.h), ui.glow, 0.62, 0.52); }
+  // threshold 0.9: the screen-blended dust tops out near 1, so mainly the HDR nuclei and the densest disk centres
+  // bloom (at 0.52 every disk bloomed into one green fog)
+  { const s=stageSize(); bloomPass = new UnrealBloomPass(new THREE.Vector2(s.w, s.h), ui.glow, 0.3, 0.9); }
   composer.addPass(bloomPass);
   afterPass = new AfterimagePass(0.90);   // longer comet-streaks -> the tidal tails trace out as light
   afterPass.enabled = ui.trails;
@@ -796,15 +856,15 @@ document.getElementById('encounter').addEventListener('click', e=>{
   ui.encounter = (ui.encounter==='flyby') ? 'merge' : 'flyby';
   e.target.textContent = 'encounter: '+ui.encounter;
   document.getElementById('modechip').textContent = (ui.encounter==='flyby') ? 'FLYBY' : 'MERGER';
-  collisionAge = 0; reseedAll();
+  reseedAll();
+  if(!camTouched) fitCamera();      // a merger spreads wider than a flyby: step the default view back for it
   if(paused) settle(SETTLE);        // paused: show the new encounter settled, not its seed
 });
 document.getElementById('s_grav').addEventListener('input', e=>{ ui.grav=(+e.target.value); simU.uG.value=ui.grav; });
 document.getElementById('s_suns').addEventListener('input', e=>{
   ui.suns=(+e.target.value);
-  seedBodies(ui.suns);
-  buildBodyPoints();
-  pushBodiesToUniform();
+  reseedAll();                      // new cores AND their dust (re-seeding the cores alone stranded the old disks)
+  if(paused) settle(SETTLE);
 });
 document.getElementById('s_drift').addEventListener('input', e=>{ ui.drift=(+e.target.value)/100; });
 document.getElementById('s_glow').addEventListener('input',  e=>{ ui.glow=(+e.target.value)/100; bloomPass.strength=ui.glow; });
@@ -816,7 +876,8 @@ document.getElementById('push').addEventListener('click', ()=>{
   presetIdx = (presetIdx+1)%PRESETS.length;
   ceilingIdx = presetIdx;
   rebuildAt(PRESETS[presetIdx].tex);
-  if(paused) settle(SETTLE);        // paused: show a settled field, not the raw seed shell
+  reseedAll();                      // the new dust seeds onto fresh disks, so restart the encounter with it
+  if(paused) settle(SETTLE);        // paused: show a settled field, not the raw seed
 });
 document.getElementById('save').addEventListener('click', ()=>{
   composer.render();
@@ -826,12 +887,16 @@ document.getElementById('save').addEventListener('click', ()=>{
 });
 
 function reseedAll(){
-  // re-scatter the suns AND force every tracer to respawn over the next couple of frames
+  // re-scatter the suns AND re-seed every tracer on the next compute step; restart the encounter clock too, or a
+  // paused Reseed late in a loop settles straight past the replay point and re-seeds a second time
+  collisionAge = 0;
   seedBodies(ui.suns);
   buildBodyPoints();
   pushBodiesToUniform();
   simU.uTime.value += 137.5;         // decorrelate the seed hash
-  forceReseedPulse = 2;              // frames where lifeRate is huge -> all particles expire & respawn
+  // next compute step re-seeds EVERY tracer (uReseed). The old pulse (lifeRate 14 for 2 frames) removed only
+  // 14 x ~0.01 x 2 ≈ 0.3 life, under the 0.55 floor, so Reseed and the encounter loop never moved the dust.
+  forceReseedPulse = 1;
 }
 let forceReseedPulse = 0;
 
@@ -845,9 +910,10 @@ function updateCaption(){
   document.getElementById('caption').innerHTML =
     `Two bright galaxy <b>cores</b> (two to five in merge mode) obey <span class="live">Newtonian gravitation</span> — every body pulls every other by ` +
     `<b>a = ΣⱼG·mⱼ·(pⱼ−pᵢ)/|pⱼ−pᵢ|³</b> — while a million <b>massless tracers</b> simply fall through their moving potential, ` +
-    `revealing it. Where the dust is whipped fast near a core it glows hot gold-white; in the calm outskirts it cools to emerald. ` +
-    `The <span class="live">tidal streams</span> and accretion you see are <b>structure formation</b> in miniature — the same gravitational ` +
-    `instability that grew galaxies and clusters from a near-uniform haze of dust.`;
+    `revealing it. Where the dust is whipped fast near a core it glows hot gold-white; in the calm outskirts it cools to teal. ` +
+    `The bridge and the two long <span class="live">tidal tails</span> are pure tides: on a slow prograde pass, each core pulls the near ` +
+    `side of the other's disk into a bridge and flings the far side out into a tail — the mechanism Toomre &amp; Toomre used to explain ` +
+    `the Antennae and the Mice.`;
 }
 
 /* ─────────────────────────  perf governor  ───────────────────────── */
@@ -874,8 +940,8 @@ function onResize(){
   const s=stageSize();
   renderer.setSize(s.w,s.h,false);
   camera.aspect=s.w/s.h; camera.updateProjectionMatrix();
+  if(!camTouched) fitCamera();      // keep the encounter framed (portrait phones sit further back) until the user moves the view
   if(composer) sizeComposer();
-  if(points) points.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
   if(bodyMat) bodyMat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
 }
 window.addEventListener('resize', onResize);
@@ -889,32 +955,38 @@ function animate(){
   frame(dt, dtMs);
 }
 // Push/Reseed while paused (the reduced-motion default): advance the sim SETTLE steps over the next frames without
-// drawing (4 steps per frame, so the page never blocks), then run the last 24 steps with drawing in one task. That
-// rebuilds the trails, and only the final still frame reaches the screen. Same pattern as 08-magnetosphere.
-const SETTLE = 300;
+// drawing (12 compute-only steps per frame, so the page never blocks), then run the last 24 steps with drawing in one
+// task. That rebuilds the trails, and only the final still frame reaches the screen. Same pattern as 08-magnetosphere.
+// 840 steps = 14 s at the default drift: just past pericentre, with the bridge and both tails drawn out.
+const SETTLE = 840;
 let settleLeft = 0;
 function settle(n){ settleLeft = n; }
 function simStep(dt){
-  // reseed pulse (Reseed button)
-  if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.05; }
+  const sdt = dt*simRate();          // global time scaling with drift
 
-  // replay the encounter so it keeps returning to the dramatic approach (flyby is a quicker single pass)
-  collisionAge += dt*(0.4+1.2*ui.drift);
-  if(collisionAge > (ui.encounter==='flyby'?34.0:24.0)){ collisionAge = 0; reseedAll(); }
+  // replay the encounter so it keeps returning to the dramatic approach (flyby: ~34 s at the default drift)
+  collisionAge += sdt;
+  if(collisionAge > (ui.encounter==='flyby'?40.0:36.0)) reseedAll();
 
   // advance the CPU bodies, then hand them to the GPU + the visible sun sprites
-  stepBodies(dt*(0.4+1.2*ui.drift));
+  stepBodies(sdt);
   pushBodiesToUniform();
   updateBodyGeom();
 
-  simU.uTime.value += dt*(0.4+1.2*ui.drift); // global time scaling with drift
-  simU.uDelta.value = dt*(0.4+1.2*ui.drift);
+  // full re-seed (Reseed button / loop / galaxies slider): one compute step with uReseed = 1
+  simU.uReseed.value = forceReseedPulse>0 ? 1.0 : 0.0;
+  if(forceReseedPulse>0) forceReseedPulse--;
+
+  simU.uTime.value += sdt;
+  simU.uDelta.value = sdt;
   gpu.compute();
 }
 function draw(){
   // feed current sim textures to the draw material
   points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
   points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+  points.material.uniforms.uExposure.value = dustExposure();
+  points.material.uniforms.uCamDist.value = camera.position.distanceTo(controls.target);
 
   composer.render();
 }
@@ -930,7 +1002,7 @@ function frame(dt, dtMs){
   if(!paused) settleLeft = 0;
   const settling = paused && settleLeft > 0;
   if(settling){
-    if(settleLeft > 24){ for(let i=0;i<4 && settleLeft>24;i++,settleLeft--) simStep(1/60); }
+    if(settleLeft > 24){ for(let i=0;i<12 && settleLeft>24;i++,settleLeft--) simStep(1/60); }
     else { while(settleLeft>0){ simStep(1/60); settleLeft--; if(settleLeft>0) draw(); } }   // one task: only the final frame is shown
   }
   else if(!paused) simStep(dt);
@@ -959,11 +1031,11 @@ try{
   onResize();
   // debug/verification hook: step the sim+render N frames even when the tab is hidden (rAF is paused)
   window.__sim = { frame, step:(n=1,dt=1/60)=>{ for(let i=0;i<n;i++) frame(dt, dt*1000); }, reseedAll,
-                   fit:(w,h)=>{ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); sizeComposer(); points.material.uniforms.uPixelRatio.value=renderer.getPixelRatio(); if(bodyMat) bodyMat.uniforms.uPixelRatio.value=renderer.getPixelRatio(); },
+                   fit:(w,h)=>{ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); sizeComposer(); if(bodyMat) bodyMat.uniforms.uPixelRatio.value=renderer.getPixelRatio(); },
                    set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; },
                    get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), suns:Math.min(bodies.length,MAX_BODIES)}; } };
+  if(REDUCED){ setPaused(true); settle(SETTLE); }   // reduced motion: settle to the tidal tails off-screen (no blocking loop), then hold that still frame
   animate();
-  if(REDUCED){ window.__sim.step(SETTLE); setPaused(true); }   // reduced motion: warm up ~5 s (cores + infalling dust shell), then hold a still frame
 }catch(err){
   console.error(err);
   if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the particle engine.<br><small>'+(err&&err.message||err)+'</small>');
