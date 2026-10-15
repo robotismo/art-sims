@@ -184,8 +184,14 @@ forever without ever compressing it. Each mote is drawn not as a point but as a 
 segment**, so coherent currents read as silk and turbulence as braid — the light *is* the flow. A director eases the
 field through four **movements** — *Laminar → Turbulent → Vortical → Calm* — with randomized durations and freshly
 reseeded vortices each cycle, so it is a generative composition that **never repeats**. Stir it with the cursor and the
-divergence-free field heals the channel you carve. By default ~2.1M filaments are simulated; an FPS governor draws a
-share of them (down to 45%) to hold the frame rate. "Push it" climbs to 4.2M / 6.6M. *Controls: reseed, turbulence, swirl, streak length, glow, particle count, Save PNG.*
+divergence-free field heals the channel you carve. The default load is ~2.1M filaments (1448² texture). An FPS governor
+draws a share of them (down to 45%), then lowers the pixel ratio, to hold 60 FPS; only the filaments it draws are
+simulated. "Push it" climbs to 4.2M / 6.6M. *Controls: reseed, turbulence, swirl, streak length, glow, particle count, Save PNG.*
+
+*Performance (measured):* MacBook Pro 14" M2 Pro (16-core GPU, 120 Hz), headed Playwright Chromium (ANGLE Metal),
+1440×900 window, one page at a time, average rAF frame rate over 8 s after a 10 s settle, default settings. Retina
+(2× DPR): 65.5–69.7 FPS over four runs (the governor settles at pixel ratio 1.25–1.5 with 0.94–1.11M filaments drawn),
+up from 55.0–57.4 FPS. 1× DPR: 69.6–70.8 FPS, up from 56.2–57.0 FPS. Other GPUs settle at other draw shares.
 
 ---
 
