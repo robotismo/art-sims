@@ -373,7 +373,20 @@ const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let paused=false;
 function loop(){ if(!paused) tick(); raf=requestAnimationFrame(loop); }
 const ppBtn=document.getElementById('playpause');
-function setPaused(p){ paused=p; ppBtn.textContent=p?'▶ Play':'❚❚ Pause'; ppBtn.setAttribute('aria-pressed',String(p)); }
+const hintEl=document.querySelector('.hint');
+function setPaused(p){ paused=p; ppBtn.textContent=p?'▶ Play':'❚❚ Pause'; ppBtn.setAttribute('aria-pressed',String(p));
+  hintEl.textContent = p ? 'press Play, then drag to stir ·' : 'drag to stir ·';   // a drag does nothing while paused
+  if(!p) warmId++; }                                                              // Play: the live loop takes over from a warm-up
+/* Paused still frame: develop the ink for n solver steps WITHOUT drawing (about 2 s of CPU for 220, so it runs in
+   24 ms chunks to keep the page responsive), then draw that one settled frame. A newer warm-up or Play cancels it. */
+let warmId=0;
+function warmUp(n){
+  const id=++warmId; let left=n;
+  (function warm(){ if(id!==warmId) return;
+    const t0=performance.now();
+    while(left>0 && performance.now()-t0<24){ simStep(); left--; }
+    if(left>0) setTimeout(warm,0); else render(); })();
+}
 ppBtn.addEventListener('click',()=>setPaused(!paused));
 function start(){ cancelAnimationFrame(raf); loop(); }
 
@@ -390,7 +403,7 @@ const swirlEl=document.getElementById('swirl'), swirlv=document.getElementById('
 const fadeEl =document.getElementById('fade'),  fadev =document.getElementById('fadev');
 swirlEl.oninput=()=>{ SWIRL=+swirlEl.value; swirlv.textContent=SWIRL.toFixed(1); };
 fadeEl.oninput =()=>{ FADE =+fadeEl.value;  fadev.textContent =FADE.toFixed(2); };
-document.getElementById('clear').onclick=()=>{ clearAll(); };
+document.getElementById('clear').onclick=()=>{ clearAll(); if(paused) warmUp(220); };   // paused: reseed to a settled still, not a blank stage
 document.getElementById('save').onclick=()=>{ const a=document.createElement('a');
   a.download='stable-fluids.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
 
@@ -420,15 +433,8 @@ window.__sim={
 
 clearAll();
 start();
-/* Reduced motion: hold still. Develop the ink for 220 solver steps WITHOUT drawing (about 2 s of CPU, so it
-   runs in short chunks to keep the page responsive), then draw that one settled frame. ▶ Play resumes. */
-if(REDUCED){
-  setPaused(true);
-  let left=220;
-  (function warm(){ const t0=performance.now();
-    while(left>0 && performance.now()-t0<24){ simStep(); left--; }
-    if(left>0) setTimeout(warm,0); else render(); })();
-}
+/* Reduced motion: hold still on one settled frame (see warmUp). ▶ Play resumes. */
+if(REDUCED){ setPaused(true); warmUp(220); }
 </script>
 </body>
 </html>

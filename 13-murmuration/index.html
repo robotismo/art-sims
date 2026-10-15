@@ -317,7 +317,22 @@ const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let paused=false;
 function loop(){ if(!paused) tick(); raf=requestAnimationFrame(loop); }
 const ppBtn=document.getElementById('playpause');
-function setPaused(p){ paused=p; ppBtn.textContent=p?'▶ Play':'❚❚ Pause'; ppBtn.setAttribute('aria-pressed',String(p)); }
+function setPaused(p){ paused=p; ppBtn.textContent=p?'▶ Play':'❚❚ Pause'; ppBtn.setAttribute('aria-pressed',String(p));
+  if(!p) settleId++; }   // Play: the live loop takes over from a settle in progress
+/* Paused still frame (reduced motion, or a new flock while paused): the flock needs ~120 steps to organise, about
+   1 s of CPU in one go. Run all but the last 12 steps WITHOUT drawing, in 24 ms chunks so the page stays responsive,
+   then the last 12 as full ticks in one task (~100 ms). The 0.22-alpha wash leaves <5% of older frames, so the
+   motion-blur trails build up, and only the final frame is painted. A newer settle or Play cancels it. */
+let settleId=0;
+function settle(n){
+  const id=++settleId; let left=n;
+  (function chunk(){ if(id!==settleId) return;
+    const t0=performance.now();
+    while(left>12 && performance.now()-t0<24){ simulate(); left--; }
+    if(left>12){ setTimeout(chunk,0); return; }
+    ctx.globalCompositeOperation='source-over'; ctx.fillStyle='#070b09'; ctx.fillRect(0,0,W,H);
+    while(left>0){ tick(); left--; } })();
+}
 ppBtn.addEventListener('click',()=>setPaused(!paused));
 function start(){ cancelAnimationFrame(raf); ctx.fillStyle='#070b09'; ctx.fillRect(0,0,W,H); loop(); }
 
@@ -327,12 +342,12 @@ const cohEl=document.getElementById('cohesion'), cohv=document.getElementById('c
 const aliEl=document.getElementById('align'), aliv=document.getElementById('alignv');
 const hawkBtn=document.getElementById('hawk');
 
-countEl.oninput=()=>{ countv.textContent=countEl.value; seed(+countEl.value); };  // rebuilds arrays safely
+countEl.oninput=()=>{ countv.textContent=countEl.value; seed(+countEl.value); if(paused) settle(120); };  // rebuilds arrays safely
 cohEl.oninput=()=>{ W_COH=+cohEl.value; cohv.textContent=W_COH.toFixed(2); };
 aliEl.oninput=()=>{ W_ALI=+aliEl.value; aliv.textContent=W_ALI.toFixed(2); };
 hawkBtn.onclick=()=>{ hawkOn=!hawkOn; hawkBtn.textContent=(hawkOn?'✕ Hawk: On':'○ Hawk: Off'); };
-document.getElementById('regen').onclick=()=>{ seed(N); start();
-  if(paused){ for(let i=0;i<120;i++) tick(); } };   // paused: settle the new flock so the frame is not left blank
+document.getElementById('regen').onclick=()=>{ seed(N);
+  if(paused) settle(120); else start(); };   // paused: settle the new flock so the frame is not left blank
 document.getElementById('save').onclick=()=>{ const a=document.createElement('a');
   a.download='murmuration.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
 
@@ -353,7 +368,7 @@ window.__sim={
 
 seed(N);
 start();
-if(REDUCED){ window.__sim.step(120); setPaused(true); }   // reduced motion: settle the flock, then hold a still frame
+if(REDUCED){ setPaused(true); settle(120); }   // reduced motion: settle the flock (see settle), then hold a still frame
 </script>
 </body>
 </html>
