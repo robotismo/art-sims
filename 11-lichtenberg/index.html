@@ -38,6 +38,8 @@ h1{font-size:30px;margin:9px 0 2px;font-weight:600}
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
 canvas{display:block;max-width:100%;height:auto}
 .stage{max-width:100%}
+/* cap the stage by the viewport height, so the piece and the first row of controls fit on one screen */
+canvas{width:min(820px,max(300px,calc((100vh - 230px))));width:min(820px,max(300px,calc((100svh - 230px))))}
 /* reduced motion: static 'growing' label while the figure is computed off-screen (no animation) */
 .busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;margin:0;padding-top:84px;pointer-events:none;
   color:var(--muted);font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;letter-spacing:.12em}
@@ -84,7 +86,7 @@ across the sky.</p>
 const canvas=document.getElementById('c');
 const W=820,H=820;
 function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
-  canvas.style.width=W+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+  const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
 const ctx=fit();
 
 // ---- simulation grid ----
@@ -106,6 +108,7 @@ const CAP=4200;                        // hard cap on cluster size
 const SWEEPS=4;                        // Gauss-Seidel/SOR relaxation sweeps per growth step
 const OMEGA=1.5;                       // SOR over-relaxation factor
 const MIN_CELLS=3000;                  // grow at least this many before a frame-touch ends it (denser starburst)
+const GUARD_BAND=40;                   // while guarded, damp the frame's pull on candidates this many cells from it
 
 const idx=(x,y)=>y*GRID+x;
 
@@ -167,8 +170,13 @@ function growOne(){
   // (2)(3) gather candidate weights w = max(phi,0)^eta
   const cells=[]; const wts=[]; let total=0;
   for(const i of frontier){
-    if(guard && inFrame(i%GRID,(i/GRID)|0)) continue;   // defer frame cells
+    const cx=i%GRID, cy=(i/GRID)|0;
+    if(guard && inFrame(cx,cy)) continue;     // defer frame cells
     let p=phi[i]; if(p<0)p=0;                 // clamp negatives to 0
+    // Deferring only the frame ring is not enough: a finger stalled one cell inside it has the highest phi on
+    // the board, so it crawls along the frame and draws a lit rim. Scale phi by (d/GUARD_BAND)^2 near the frame
+    // while guarded, so the field pulls the starburst outward evenly instead of along the walls.
+    if(guard){const d=Math.min(cx,cy,GRID-1-cx,GRID-1-cy); if(d<GUARD_BAND){const f=d/GUARD_BAND; p*=f*f;}}
     const w=Math.pow(p,eta);
     cells.push(i);wts.push(w);total+=w;
   }
