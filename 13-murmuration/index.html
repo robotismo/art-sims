@@ -38,6 +38,8 @@ h1{font-size:30px;margin:9px 0 2px;font-weight:600}
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
 canvas{display:block;max-width:100%;height:auto;cursor:crosshair;touch-action:none}
 .stage{max-width:100%}
+/* cap the stage by the viewport height, so the piece and the first row of controls fit on one screen */
+canvas{width:min(820px,max(300px,calc((100vh - 230px)*820/620)));width:min(820px,max(300px,calc((100svh - 230px)*820/620)))}
 /* short landscape phones: the touch-action:none canvas must not fill the viewport, or a swipe can never scroll the
    page. Cap the stage so ~120px of page stays outside it (aspect 1.3226: the canvas keeps its shape via max-width). */
 @media (max-height:500px){.stage{max-width:min(100%,calc((100vh - 120px)*1.3226));max-width:min(100%,calc((100svh - 120px)*1.3226))}}
@@ -85,7 +87,7 @@ real <b>starling murmuration</b> emerge with no leader at all.</p>
 const canvas=document.getElementById('c');
 const W=820,H=620;
 function fit(){const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;
-  canvas.style.width=W+'px';const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
+  const x=canvas.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return x;}
 const ctx=fit();
 
 /* ───────── tuning ───────── */
@@ -96,7 +98,7 @@ const MAXSPEED=3.1, MINSPEED=1.6, MAXFORCE=0.075;
 const FEAR_R=120, FEAR_R2=FEAR_R*FEAR_R;
 const W_SEP=1.7;          // base weights (alignment & cohesion scaled by sliders)
 let   W_ALI=1.2, W_COH=1.0;
-const MARGIN=70, TURN=0.22;   // soft wrap-back from edges
+const MARGIN=100, TURN=0.22;  // soft wrap-back from edges: the turn ramps up across this margin
 
 /* ───────── flock state (struct-of-arrays) ───────── */
 let N=2500;
@@ -236,11 +238,12 @@ function simulate(){
       }
     }
 
-    // edge steering — gentle turn back so the flock stays on stage (no hard wrap snap)
-    if(x<MARGIN)      ax+=TURN;
-    else if(x>W-MARGIN) ax-=TURN;
-    if(y<MARGIN)      ay+=TURN;
-    else if(y>H-MARGIN) ay-=TURN;
+    // edge steering — gentle turn back so the flock stays on stage (no hard wrap snap). The turn grows with depth
+    // into the margin; a constant turn that switched on at one line stacked the birds into straight walls there.
+    if(x<MARGIN)      ax+=TURN*(MARGIN-x)/MARGIN;
+    else if(x>W-MARGIN) ax-=TURN*(x-(W-MARGIN))/MARGIN;
+    if(y<MARGIN)      ay+=TURN*(MARGIN-y)/MARGIN;
+    else if(y>H-MARGIN) ay-=TURN*(y-(H-MARGIN))/MARGIN;
 
     // integrate velocity, clamp to maxSpeed (and a floor so birds never stall)
     let nvx=vx[i]+ax, nvy=vy[i]+ay;
