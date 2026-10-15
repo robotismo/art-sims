@@ -623,7 +623,7 @@ window.addEventListener('keydown', e=>{
 });
 
 /* ─────────────────────────  controls  ───────────────────────── */
-document.getElementById('reseed').addEventListener('click', reseedAll);
+document.getElementById('reseed').addEventListener('click', ()=>{ reseedAll(); if(paused) settle(SETTLE); });   // paused: apply the reseed now
 document.getElementById('s_turb').addEventListener('input',  e=>{ ui.turb=(+e.target.value)/100; });
 document.getElementById('s_swirl').addEventListener('input', e=>{ ui.swirl=(+e.target.value)/100; pushVortices(); });
 document.getElementById('s_streak').addEventListener('input',e=>{ ui.streak=(+e.target.value)/100; });
@@ -631,6 +631,7 @@ document.getElementById('s_glow').addEventListener('input',  e=>{ ui.glow=(+e.ta
 document.getElementById('push').addEventListener('click', ()=>{
   presetIdx = (presetIdx+1)%PRESETS.length; ceilingIdx = presetIdx;
   buildSim(PRESETS[presetIdx].tex); buildComposer();
+  if(paused) settle(SETTLE);        // paused: show a settled field, not the raw seed shell
 });
 document.getElementById('save').addEventListener('click', ()=>{
   composer.render();
@@ -688,34 +689,50 @@ if(window.ResizeObserver){ new ResizeObserver(()=>onResize()).observe(stage); }
 
 /* ─────────────────────────  main loop  ───────────────────────── */
 function animate(){ requestAnimationFrame(animate); timer.update(); const dtMs=timer.getDelta()*1000; frame(Math.min(dtMs/1000,1/45), dtMs); }
+// Push/Reseed while paused (the reduced-motion default): advance the sim SETTLE steps over the next frames without
+// drawing (4 steps per frame, so the page never blocks), then run the last 24 steps with drawing in one task. That
+// rebuilds the trails, and only the final still frame reaches the screen. Same pattern as 08-magnetosphere.
+const SETTLE = 360;
+let settleLeft = 0;
+function settle(n){ settleLeft = n; }
+function simStep(dt){
+  advanceDirector(dt);
+  if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.045; }
+  // write the eased composition (+ user multipliers) into the live uniforms
+  simU.uLamAmp.value  = comp.lamAmp;
+  simU.uTurbAmp.value = comp.turbAmp * ui.turb;
+  simU.uVortAmp.value = comp.vortAmp;
+  simU.uTurbScale.value = comp.turbScale;
+  points.material.uniforms.uTrail.value = comp.streak * ui.streak;
+  points.material.uniforms.uWarm.value  = comp.warm;
+  if(bloomPass) bloomPass.strength = comp.glow * ui.glow;
+
+  simU.uTime.value += dt; simU.uDelta.value = dt;
+  gpu.compute();
+}
+function draw(){
+  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
+  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+
+  points.material.uniforms.uExposure.value = EXPOSURE*exposureScale();
+  composer.render();
+}
 function frame(dt, dtMs){
   // stir decay (the field heals after you let go)
   simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25; stirTarget *= 0.86;
   controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
   document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
 
-  if(!paused){
-    advanceDirector(dt);
-    if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.045; }
-    // write the eased composition (+ user multipliers) into the live uniforms
-    simU.uLamAmp.value  = comp.lamAmp;
-    simU.uTurbAmp.value = comp.turbAmp * ui.turb;
-    simU.uVortAmp.value = comp.vortAmp;
-    simU.uTurbScale.value = comp.turbScale;
-    points.material.uniforms.uTrail.value = comp.streak * ui.streak;
-    points.material.uniforms.uWarm.value  = comp.warm;
-    if(bloomPass) bloomPass.strength = comp.glow * ui.glow;
-
-    simU.uTime.value += dt; simU.uDelta.value = dt;
-    gpu.compute();
+  if(!paused) settleLeft = 0;
+  const settling = paused && settleLeft > 0;
+  if(settling){
+    if(settleLeft > 24){ for(let i=0;i<4 && settleLeft>24;i++,settleLeft--) simStep(1/60); }
+    else { while(settleLeft>0){ simStep(1/60); settleLeft--; if(settleLeft>0) draw(); } }   // one task: only the final frame is shown
   }
-
-  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
-  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+  else if(!paused) simStep(dt);
 
   controls.update();
-  points.material.uniforms.uExposure.value = EXPOSURE*exposureScale();
-  composer.render();
+  if(!settling || settleLeft===0) draw();   // while settling, keep the old frame on screen
   if(!paused) governor(dtMs);   // a paused still frame must not change resolution or draw range
 
   if((frame._f=(frame._f||0)+1)%12===0){
@@ -741,7 +758,7 @@ try{
     get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), movement:MOVEMENTS[movIdx].name, vortices:vortices.length}; },
   };
   animate();
-  if(REDUCED){ window.__sim.step(360); setPaused(true); }
+  if(REDUCED){ window.__sim.step(SETTLE); setPaused(true); }
 }catch(err){
   console.error(err);
   if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the engine.<br><small>'+(err&&err.message||err)+'</small>');

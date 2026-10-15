@@ -677,7 +677,7 @@ window.addEventListener('keydown', e=>{
 document.querySelectorAll('#modeseg button').forEach(b=>{
   b.addEventListener('click', ()=>switchMode(+b.dataset.mode));
 });
-document.getElementById('reseed').addEventListener('click', reseedAll);
+document.getElementById('reseed').addEventListener('click', ()=>{ reseedAll(); if(paused) settle(SETTLE); });   // paused: apply the reseed now
 document.getElementById('morph').addEventListener('click', morphNow);
 document.getElementById('s_scale').addEventListener('input', e=>{ ui.scale=(+e.target.value)/1000; simU.uFlowScale.value=ui.scale; });
 document.getElementById('s_drift').addEventListener('input', e=>{ ui.drift=(+e.target.value)/100; simU.uDrift.value=ui.drift; });
@@ -690,6 +690,7 @@ document.getElementById('push').addEventListener('click', ()=>{
   presetIdx = (presetIdx+1)%PRESETS.length;
   ceilingIdx = presetIdx;
   rebuildAt(PRESETS[presetIdx].tex);
+  if(paused) settle(SETTLE);        // paused: show a settled field, not the raw seed shell
 });
 document.getElementById('save').addEventListener('click', ()=>{
   composer.render();
@@ -762,6 +763,43 @@ function animate(){
   const dt = Math.min(dtMs/1000, 1/45);
   frame(dt, dtMs);
 }
+// Push/Reseed while paused (the reduced-motion default): advance the sim SETTLE steps over the next frames without
+// drawing (4 steps per frame, so the page never blocks), then run the last 24 steps with drawing in one task. That
+// rebuilds the trails, and only the final still frame reaches the screen. Same pattern as 08-magnetosphere.
+const SETTLE = 90;
+let settleLeft = 0;
+function settle(n){ settleLeft = n; }
+function simStep(dt){
+  // morph easing
+  if(morphActive){ morphT += dt; morph = Math.min(1, morphT/1.6); simU.uMorph.value = morph; if(morph>=1) morphActive=false; }
+  // chaos attractor auto-drift + on-demand sweep
+  if(modeTo===1){
+    if(attractorSweep){
+      simU.uAttractorMix.value += sweepDir*dt*0.9;
+      if(simU.uAttractorMix.value<=0||simU.uAttractorMix.value>=1){ simU.uAttractorMix.value=Math.max(0,Math.min(1,simU.uAttractorMix.value)); attractorSweep=false; }
+    } else {
+      simU.uAttractorMix.value = 0.5+0.5*Math.sin(simU.uTime.value*0.04);
+    }
+    points.material.uniforms.uWarm.value = 0.20*(1.0-simU.uAttractorMix.value); // lorenz warmer
+  }
+  flash = Math.max(0, flash-dt*1.6);
+
+  // reseed pulse (Reseed button)
+  if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) applyModeDefaults(modeTo,true); }
+
+  simU.uTime.value += dt*(0.4+1.2*ui.drift); // a little global time scaling with drift
+  simU.uDelta.value = dt;
+  gpu.compute();
+}
+function draw(){
+  // feed current sim textures to the draw material
+  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
+  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+  points.material.uniforms.uExposure.value = (modeExposure + flash*0.40)*densityK;
+  if(bloomPass) bloomPass.strength = ui.glow + flash*0.8;
+
+  composer.render();
+}
 function frame(dt, dtMs){
   // stir decay
   simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25;
@@ -771,37 +809,16 @@ function frame(dt, dtMs){
   controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
   document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
 
-  if(!paused){
-    // morph easing
-    if(morphActive){ morphT += dt; morph = Math.min(1, morphT/1.6); simU.uMorph.value = morph; if(morph>=1) morphActive=false; }
-    // chaos attractor auto-drift + on-demand sweep
-    if(modeTo===1){
-      if(attractorSweep){
-        simU.uAttractorMix.value += sweepDir*dt*0.9;
-        if(simU.uAttractorMix.value<=0||simU.uAttractorMix.value>=1){ simU.uAttractorMix.value=Math.max(0,Math.min(1,simU.uAttractorMix.value)); attractorSweep=false; }
-      } else {
-        simU.uAttractorMix.value = 0.5+0.5*Math.sin(simU.uTime.value*0.04);
-      }
-      points.material.uniforms.uWarm.value = 0.20*(1.0-simU.uAttractorMix.value); // lorenz warmer
-    }
-    flash = Math.max(0, flash-dt*1.6);
-
-    // reseed pulse (Reseed button)
-    if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) applyModeDefaults(modeTo,true); }
-
-    simU.uTime.value += dt*(0.4+1.2*ui.drift); // a little global time scaling with drift
-    simU.uDelta.value = dt;
-    gpu.compute();
+  if(!paused) settleLeft = 0;
+  const settling = paused && settleLeft > 0;
+  if(settling){
+    if(settleLeft > 24){ for(let i=0;i<4 && settleLeft>24;i++,settleLeft--) simStep(1/60); }
+    else { while(settleLeft>0){ simStep(1/60); settleLeft--; if(settleLeft>0) draw(); } }   // one task: only the final frame is shown
   }
-
-  // feed current sim textures to the draw material
-  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
-  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
-  points.material.uniforms.uExposure.value = (modeExposure + flash*0.40)*densityK;
-  if(bloomPass) bloomPass.strength = ui.glow + flash*0.8;
+  else if(!paused) simStep(dt);
 
   controls.update();
-  composer.render();
+  if(!settling || settleLeft===0) draw();   // while settling, keep the old frame on screen
   if(!paused) governor(dtMs);   // a paused still frame must not change resolution or draw range
 
   // HUD
@@ -826,7 +843,7 @@ try{
                     set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; },
                     get state(){ return {mode:modeTo, texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), densityK:+densityK.toFixed(2)}; } };
   animate();
-  if(REDUCED){ window.__flux.step(90); setPaused(true); }   // reduced motion: settle the field, then hold a still frame
+  if(REDUCED){ window.__flux.step(SETTLE); setPaused(true); }   // reduced motion: settle the field, then hold a still frame
 }catch(err){
   console.error(err);
   if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the particle engine.<br><small>'+(err&&err.message||err)+'</small>');

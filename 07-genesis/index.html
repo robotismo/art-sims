@@ -787,12 +787,13 @@ window.addEventListener('keydown', e=>{
 });
 
 /* ─────────────────────────  controls / UI  ───────────────────────── */
-document.getElementById('reseed').addEventListener('click', reseedAll);
+document.getElementById('reseed').addEventListener('click', ()=>{ reseedAll(); if(paused) settle(SETTLE); });   // paused: apply the reseed now
 document.getElementById('encounter').addEventListener('click', e=>{
   ui.encounter = (ui.encounter==='flyby') ? 'merge' : 'flyby';
   e.target.textContent = 'encounter: '+ui.encounter;
   document.getElementById('modechip').textContent = (ui.encounter==='flyby') ? 'FLYBY' : 'MERGER';
   collisionAge = 0; reseedAll();
+  if(paused) settle(SETTLE);        // paused: show the new encounter settled, not its seed
 });
 document.getElementById('s_grav').addEventListener('input', e=>{ ui.grav=(+e.target.value); simU.uG.value=ui.grav; });
 document.getElementById('s_suns').addEventListener('input', e=>{
@@ -811,6 +812,7 @@ document.getElementById('push').addEventListener('click', ()=>{
   presetIdx = (presetIdx+1)%PRESETS.length;
   ceilingIdx = presetIdx;
   rebuildAt(PRESETS[presetIdx].tex);
+  if(paused) settle(SETTLE);        // paused: show a settled field, not the raw seed shell
 });
 document.getElementById('save').addEventListener('click', ()=>{
   composer.render();
@@ -882,6 +884,36 @@ function animate(){
   const dt = Math.min(dtMs/1000, 1/45);
   frame(dt, dtMs);
 }
+// Push/Reseed while paused (the reduced-motion default): advance the sim SETTLE steps over the next frames without
+// drawing (4 steps per frame, so the page never blocks), then run the last 24 steps with drawing in one task. That
+// rebuilds the trails, and only the final still frame reaches the screen. Same pattern as 08-magnetosphere.
+const SETTLE = 300;
+let settleLeft = 0;
+function settle(n){ settleLeft = n; }
+function simStep(dt){
+  // reseed pulse (Reseed button)
+  if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.05; }
+
+  // replay the encounter so it keeps returning to the dramatic approach (flyby is a quicker single pass)
+  collisionAge += dt*(0.4+1.2*ui.drift);
+  if(collisionAge > (ui.encounter==='flyby'?34.0:24.0)){ collisionAge = 0; reseedAll(); }
+
+  // advance the CPU bodies, then hand them to the GPU + the visible sun sprites
+  stepBodies(dt*(0.4+1.2*ui.drift));
+  pushBodiesToUniform();
+  updateBodyGeom();
+
+  simU.uTime.value += dt*(0.4+1.2*ui.drift); // global time scaling with drift
+  simU.uDelta.value = dt*(0.4+1.2*ui.drift);
+  gpu.compute();
+}
+function draw(){
+  // feed current sim textures to the draw material
+  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
+  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+
+  composer.render();
+}
 function frame(dt, dtMs){
   // stir decay
   simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25;
@@ -891,30 +923,16 @@ function frame(dt, dtMs){
   controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
   document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
 
-  if(!paused){
-    // reseed pulse (Reseed button)
-    if(forceReseedPulse>0){ simU.uLifeRate.value = 14.0; forceReseedPulse--; if(forceReseedPulse===0) simU.uLifeRate.value = 0.05; }
-
-    // replay the encounter so it keeps returning to the dramatic approach (flyby is a quicker single pass)
-    collisionAge += dt*(0.4+1.2*ui.drift);
-    if(collisionAge > (ui.encounter==='flyby'?34.0:24.0)){ collisionAge = 0; reseedAll(); }
-
-    // advance the CPU bodies, then hand them to the GPU + the visible sun sprites
-    stepBodies(dt*(0.4+1.2*ui.drift));
-    pushBodiesToUniform();
-    updateBodyGeom();
-
-    simU.uTime.value += dt*(0.4+1.2*ui.drift); // global time scaling with drift
-    simU.uDelta.value = dt*(0.4+1.2*ui.drift);
-    gpu.compute();
+  if(!paused) settleLeft = 0;
+  const settling = paused && settleLeft > 0;
+  if(settling){
+    if(settleLeft > 24){ for(let i=0;i<4 && settleLeft>24;i++,settleLeft--) simStep(1/60); }
+    else { while(settleLeft>0){ simStep(1/60); settleLeft--; if(settleLeft>0) draw(); } }   // one task: only the final frame is shown
   }
-
-  // feed current sim textures to the draw material
-  points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
-  points.material.uniforms.textureVelocity.value = gpu.getCurrentRenderTarget(velVar).texture;
+  else if(!paused) simStep(dt);
 
   controls.update();
-  composer.render();
+  if(!settling || settleLeft===0) draw();   // while settling, keep the old frame on screen
   if(!paused) governor(dtMs);   // a paused still frame must not change resolution or draw range
 
   // HUD
@@ -941,7 +959,7 @@ try{
                    set:(k,v)=>{ if(simU[k]) simU[k].value=v; else if(points.material.uniforms[k]) points.material.uniforms[k].value=v; },
                    get state(){ return {texSize, drawFrac:+drawFrac.toFixed(2), fps:Math.round(1000/emaMs), suns:Math.min(bodies.length,MAX_BODIES)}; } };
   animate();
-  if(REDUCED){ window.__sim.step(300); setPaused(true); }   // reduced motion: warm up ~5 s (cores + infalling dust shell), then hold a still frame
+  if(REDUCED){ window.__sim.step(SETTLE); setPaused(true); }   // reduced motion: warm up ~5 s (cores + infalling dust shell), then hold a still frame
 }catch(err){
   console.error(err);
   if(banner.style.display!=='flex') showBanner('Could not start WebGL2 / the particle engine.<br><small>'+(err&&err.message||err)+'</small>');
