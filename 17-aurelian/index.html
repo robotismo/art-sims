@@ -712,7 +712,16 @@ function simStep(dt){
   if(bloomPass) bloomPass.strength = comp.glow * ui.glow;
 
   simU.uTime.value += dt; simU.uDelta.value = dt;
+  computeRows(simU.uLifeRate.value > 1);   // the Reseed kill frame reaches every row, drawn or not
   gpu.compute();
+}
+// Compute follows the draw range: the governor draws the first drawFrac of the filaments (whole texture rows from the
+// bottom), so the two GPGPU passes are scissored to those rows plus one. Particles never interact, so the rows left out
+// simply hold still and resume where they were when the governor draws them again. Without this, 2.1M particles were
+// simulated every frame even when the governor drew only 0.94M of them.
+function computeRows(all){
+  const rows = all ? texSize : Math.min(texSize, Math.ceil(drawFrac*texSize)+1);
+  for(const v of [posVar, velVar]) for(const rt of v.renderTargets){ rt.scissor.set(0, 0, texSize, rows); rt.scissorTest = rows < texSize; }
 }
 function draw(){
   points.material.uniforms.texturePosition.value = gpu.getCurrentRenderTarget(posVar).texture;
