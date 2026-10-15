@@ -168,6 +168,9 @@ function rnd(s){return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7
 
 function glyph(cv,kind,seed){
   const w=cv.width=600,h=cv.height=375,x=cv.getContext('2d');const R=rnd(seed);
+  // solid base first: the two-circle gradient below only covers a cone, and the top corners outside it
+  // would stay transparent and show the tile's darker background as a wedge
+  x.fillStyle='#06100b';x.fillRect(0,0,w,h);
   const bg=x.createRadialGradient(w/2,0,10,w/2,h,h);bg.addColorStop(0,'#0e1814');bg.addColorStop(1,'#06100b');
   x.fillStyle=bg;x.fillRect(0,0,w,h);x.lineCap='round';x.lineJoin='round';
   if(kind==='branch'){
