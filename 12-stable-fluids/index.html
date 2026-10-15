@@ -38,6 +38,9 @@ h1{font-size:30px;margin:9px 0 2px;font-weight:600}
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 80px -30px #000;background:#05080699}
 canvas{display:block;max-width:100%;height:auto;cursor:crosshair;touch-action:none}
 .stage{max-width:100%}
+/* short landscape phones: the touch-action:none canvas must not fill the viewport, or a swipe can never scroll the
+   page. Cap the stage so ~120px of page stays outside it (aspect 1: the canvas keeps its shape via max-width). */
+@media (max-height:500px){.stage{max-width:min(100%,calc(100vh - 120px));max-width:min(100%,calc(100svh - 120px))}}
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:18px 0 12px;max-width:860px}
 button,select{background:linear-gradient(#16201b,#0e1713);color:var(--gold2);border:1px solid rgba(232,196,94,.3);
   padding:9px 15px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}

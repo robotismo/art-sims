@@ -38,6 +38,7 @@ h1{font-size:34px;margin:6px 0 2px;font-weight:600;letter-spacing:.01em}
   box-shadow:0 0 0 1px rgba(232,196,94,.14),0 30px 90px -34px #000;background:#04060a}
 canvas{display:block;width:100%;height:100%;touch-action:none}
 @media (max-width:600px){.stage{height:clamp(300px,58vh,520px)}}
+@media (max-height:500px){.stage{height:min(380px,80vh);height:min(380px,80svh)}}   /* landscape phone: leave page to scroll in above/below the touch-action:none stage */
 .hud{position:absolute;top:12px;left:14px;font-family:ui-monospace,monospace;font-size:11px;
   color:var(--muted);letter-spacing:.06em;pointer-events:none;text-shadow:0 1px 3px #000}
 .hud b{color:var(--gold2);font-weight:500}
