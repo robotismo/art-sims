@@ -633,7 +633,7 @@ document.getElementById('s_swirl').addEventListener('input', e=>{ ui.swirl=(+e.t
 document.getElementById('s_streak').addEventListener('input',e=>{ ui.streak=(+e.target.value)/100; });
 document.getElementById('s_glow').addEventListener('input',  e=>{ ui.glow=(+e.target.value)/100; });
 document.getElementById('push').addEventListener('click', ()=>{
-  presetIdx = (presetIdx+1)%PRESETS.length; ceilingIdx = presetIdx;
+  presetIdx = (presetIdx+1)%PRESETS.length; ceilingIdx = presetIdx; climbWait = 2600;   // a new load: let the governor search again
   buildSim(PRESETS[presetIdx].tex); buildComposer();
   if(paused) settle(SETTLE);        // paused: show a settled field, not the raw seed shell
 });
@@ -654,17 +654,24 @@ document.getElementById('caption').innerHTML =
   `When vortices gather they are <span class="live">Lamb–Oseen swirls</span> — themselves solenoidal, which is why the weave never tears.`;
 
 /* ─────────────────────────  perf governor  ───────────────────────── */
-let emaMs = 16.7, drawFrac = 1.0, ceilingIdx = presetIdx, lastScale = performance.now();
+/* It holds the 60 FPS floor: below 58 FPS it steps down (draw share first, to a 0.45 floor, then pixel ratio), and it
+   climbs (pixel ratio first, then draw share) only when the step's predicted cost still leaves >= 63 FPS. The frame cost
+   of both knobs is close to linear (filaments drawn and simulated; line length in device pixels), so the prediction is
+   ema * (new/old). A climb that is undone within 6 s doubles the wait before the next climb, so it cannot hunt. */
+const FPS_DOWN = 58, FPS_CLIMB = 63, DRAW_MIN = 0.45;
+let emaMs = 16.7, drawFrac = 1.0, ceilingIdx = presetIdx, lastScale = performance.now(), lastClimb = -1e9, climbWait = 2600;
 function governor(dtMs){
   dtMs = Math.min(dtMs, 100);
   emaMs = emaMs*0.92 + dtMs*0.08;
-  const fps = 1000/emaMs, now = performance.now();
-  if(fps < 48 && now-lastScale > 700){
-    if(drawFrac > 0.45){ drawFrac = Math.max(0.45, drawFrac-0.12); lastScale=now; }
-    else if(renderer.getPixelRatio() > 1.0){ renderer.setPixelRatio(Math.max(1.0, renderer.getPixelRatio()-0.25)); onResize(); lastScale=now; }
-  } else if(fps > 58 && now-lastScale > 2600){
-    if(renderer.getPixelRatio() < Math.min(window.devicePixelRatio||1,2)){ renderer.setPixelRatio(Math.min(Math.min(window.devicePixelRatio||1,2), renderer.getPixelRatio()+0.25)); onResize(); lastScale=now; }
-    else if(drawFrac < 1.0){ drawFrac = Math.min(1.0, drawFrac+0.08); lastScale=now; }
+  const fps = 1000/emaMs, now = performance.now(), pr = renderer.getPixelRatio(), prMax = Math.min(window.devicePixelRatio||1, 2);
+  if(fps < FPS_DOWN && now-lastScale > (fps < 45 ? 350 : 700)){
+    if(drawFrac > DRAW_MIN){ drawFrac = Math.max(DRAW_MIN, drawFrac-(fps < 40 ? 0.2 : 0.12)); lastScale=now; }
+    else if(pr > 1.0){ renderer.setPixelRatio(Math.max(1.0, pr-0.25)); onResize(); lastScale=now; }
+    if(lastScale===now && now-lastClimb < 6000) { climbWait = Math.min(climbWait*2, 40000); lastClimb = -1e9; }   // that climb did not hold
+  } else if(now-lastScale > climbWait){
+    const prUp = Math.min(prMax, pr+0.25), dfUp = Math.min(1.0, drawFrac+0.08);
+    if(prUp > pr && 1000/(emaMs*prUp/pr) >= FPS_CLIMB){ renderer.setPixelRatio(prUp); onResize(); lastScale=lastClimb=now; }
+    else if(dfUp > drawFrac && 1000/(emaMs*dfUp/drawFrac) >= FPS_CLIMB){ drawFrac = dfUp; lastScale=lastClimb=now; }
   }
   const n = texSize*texSize;
   geomRef.setDrawRange(0, 2*Math.floor(n*drawFrac));   // 2 verts per filament
