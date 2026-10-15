@@ -234,8 +234,14 @@ Every push to `main` (or a manual run) starts `.github/workflows/pages.yml`. The
    `vendor/three/LICENSE`;
 3. uploads `_site/` with `actions/upload-pages-artifact` and publishes it with `actions/deploy-pages`.
 
-The site is served at **https://paredes.dev/art-sims/**. One-time setup: in the repo settings, set
-**Pages → Source** to **GitHub Actions**.
+The site is served at **https://paredes.dev/art-sims/**. GitHub Pages serves a project repo at `/<repo-name>/`
+under its owner's Pages domain, so that URL needs all of these (one-time setup):
+
+- the GitHub repo is named **`art-sims`** (a repo named `ArtSimulations` would serve at `/ArtSimulations/`, and
+  every canonical/og/twitter URL would point at pages that do not exist);
+- `paredes.dev` is the custom domain of the owner's user site (`<user>.github.io`), so the owner's project sites
+  appear under `paredes.dev/<repo>/`;
+- in this repo's settings, **Pages → Source** is **GitHub Actions**.
 
 ### Change the site origin
 
@@ -247,8 +253,9 @@ scripts/set-site-url.sh https://paredes.dev https://new-origin.example
 
 The script rewrites the origin in every `*.html` file and in this README, updates `SITE_URL` in
 `scripts/site-url.mjs`, and then runs `node scripts/site-url.mjs --check`, which exits 1 if any `/art-sims/` URL
-still uses another origin. It works with the BSD `sed` on macOS and GNU `sed` on Linux. The `/art-sims/` path
-itself does not change.
+or the gallery's main-site link still uses another origin. It works with the BSD `sed` on macOS and GNU `sed` on
+Linux. The `/art-sims/` path itself does not change. Editing the `SITE_URL` line in `scripts/site-url.mjs` by hand
+and running `node scripts/site-url.mjs` does the same rewrite.
 
 `scripts/vendor-three.mjs` rebuilds `vendor/three/` from an unpacked `three@0.184.0` npm package
 (`node scripts/vendor-three.mjs <path-to-package>`).
