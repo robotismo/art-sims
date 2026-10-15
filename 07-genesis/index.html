@@ -45,8 +45,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .hud b{color:var(--gold2);font-weight:500}
 .modechip{position:absolute;top:12px;right:14px;font-family:ui-monospace,monospace;font-size:11px;
   letter-spacing:.18em;color:var(--gold);pointer-events:none;text-shadow:0 1px 3px #000}
-.hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:ui-monospace,monospace;
-  font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
+.hint{position:absolute;bottom:12px;left:0;right:0;padding:0 14px;text-align:center;font-family:ui-monospace,monospace;
+  font-size:11px;color:var(--muted);opacity:.9;pointer-events:none;transition:opacity .6s;
+  text-shadow:0 1px 3px #000,0 0 6px #000,0 0 12px #000}   /* dark halo: readable over bright particles */
+.hint span{white-space:nowrap}   /* a phrase never breaks inside: the hint wraps only after a · */
 .banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
   padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04070ae6}
 /* ── GPGPU guard banner link (CONVENTIONS d) ── */
@@ -89,7 +91,7 @@ a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(
   <canvas id="c"></canvas>
   <div class="hud" id="hud">—</div>
   <div class="modechip" id="modechip">FLYBY</div>
-  <div class="hint" id="hint">drag to orbit · scroll to dive · move the cursor to pull the tails · shift-click to drop a core</div>
+  <div class="hint" id="hint"><span>drag to orbit</span>&nbsp;· <span>scroll to dive</span>&nbsp;· <span>move the cursor to pull the tails</span>&nbsp;· <span>shift-click to drop a core</span></div>
   <div class="banner" id="banner"></div>
 </div>
 
@@ -834,7 +836,7 @@ canvas.addEventListener('contextmenu', e=>e.preventDefault());
 
 let paused = false;
 document.getElementById('s_glow').value = Math.round(ui.glow*100);   // keep the glow slider in step with the low-end default
-if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'drag to orbit & pull the tails · pinch to dive · tap to drop a core';
+if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = ['drag to orbit & pull the tails','pinch to dive','tap to drop a core'].map(t=>t.replace(/ /g,'\u00a0')).join('\u00a0· ');   // no break inside a phrase
 const ppBtn = document.getElementById('playpause');
 function setPaused(p){ paused = p; ppBtn.textContent = p ? '▶ Play' : '❚❚ Pause'; ppBtn.setAttribute('aria-pressed', String(p)); }
 ppBtn.addEventListener('click', ()=>setPaused(!paused));
@@ -997,7 +999,7 @@ function frame(dt, dtMs){
 
   // idle auto-orbit after 6s
   controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
-  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
+  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.9';
 
   if(!paused) settleLeft = 0;
   const settling = paused && settleLeft > 0;
@@ -1015,7 +1017,8 @@ function frame(dt, dtMs){
   if((animate._f=(animate._f||0)+1)%12===0){
     const fps = Math.round(1000/emaMs);
     const drawn = (texSize*texSize*drawFrac/1e6).toFixed(2);
-    document.getElementById('hud').innerHTML = `<b>${drawn}M</b> dust · <b>${Math.min(bodies.length,MAX_BODIES)}</b> galaxies · <b>${fps}</b> fps · ${texSize}²`;
+    // &nbsp; glues each number to its unit and each '·' to the segment before it, so a wrap never starts a line with a dot
+    document.getElementById('hud').innerHTML = `<b>${drawn}M</b>&nbsp;dust&nbsp;· <b>${Math.min(bodies.length,MAX_BODIES)}</b>&nbsp;galaxies&nbsp;· <b>${fps}</b>&nbsp;fps&nbsp;· ${texSize}²`;
   }
 }
 
