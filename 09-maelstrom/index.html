@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Maelstrom — Point-Vortex Turbulence</title>
-<meta name="description" content="A handful of whirlpools stir a sea of light into storms that merge and devour.">
+<meta name="description" content="Forty whirlpools stir a sea of light into storms that merge and devour.">
 <link rel="canonical" href="https://paredes.dev/art-sims/09-maelstrom/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Art Simulations">
 <meta property="og:title" content="Maelstrom — Point-Vortex Turbulence">
-<meta property="og:description" content="A handful of whirlpools stir a sea of light into storms that merge and devour.">
+<meta property="og:description" content="Forty whirlpools stir a sea of light into storms that merge and devour.">
 <meta property="og:url" content="https://paredes.dev/art-sims/09-maelstrom/">
 <meta property="og:image" content="https://paredes.dev/art-sims/09-maelstrom/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -17,7 +17,7 @@
 <meta property="og:image:alt" content="Still frame from the Maelstrom simulation">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Maelstrom — Point-Vortex Turbulence">
-<meta name="twitter:description" content="A handful of whirlpools stir a sea of light into storms that merge and devour.">
+<meta name="twitter:description" content="Forty whirlpools stir a sea of light into storms that merge and devour.">
 <meta name="twitter:image" content="https://paredes.dev/art-sims/09-maelstrom/og.jpg">
 <meta name="twitter:image:alt" content="Still frame from the Maelstrom simulation">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
@@ -83,7 +83,7 @@ a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(
 <a class="back" href="../">&larr; All simulations</a>
 <div class="eyebrow">Simulation 09 · Vol. II · Cosmos</div>
 <h1>Maelstrom</h1>
-<p class="sub">A handful of whirlpools stir a sea of light into storms that merge and devour.</p>
+<p class="sub">Forty whirlpools stir a sea of light into storms that merge and devour.</p>
 
 <div class="stage" id="stage">
   <canvas id="c"></canvas>
@@ -744,7 +744,7 @@ function rebuildAt(size){
 }
 
 /* ─────────────────────────  captions  ───────────────────────── */
-const SPINE = `A sea of massless dust drifts on the <b>induced velocity field</b> of a handful of point vortices — the whole field is just one sum, evaluated on the GPU.`;
+const SPINE = `A sea of massless dust drifts on the <b>induced velocity field</b> of up to forty point vortices — the whole field is just one sum, evaluated on the GPU.`;
 const CLAUSE = `This is <span class="live">point-vortex dynamics</span>: each whirlpool's velocity falls off like <b>1/r</b> (the 2-D <b>Biot–Savart law</b>), and the vortices <b>advect one another</b> — orbiting, pairing, merging. The tracer dust reveals <b>2-D inviscid turbulence</b>: shearing sheets, Kelvin–Helmholtz billows, vortex streets — the same math behind <b>hurricanes</b> and <b>Jupiter's Great Red Spot</b>.`;
 function updateCaption(){
   document.getElementById('caption').innerHTML = SPINE+' '+CLAUSE;

@@ -127,7 +127,7 @@ const PRESETS = [
 ];
 const LOW_END = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let presetIdx = LOW_END ? 0 : 1;                  // 2.1M default — instant 60fps; "Push it" climbs to 4.2M / 6.6M
+let presetIdx = LOW_END ? 0 : 1;                  // 2.1M simulated by default (the governor may draw fewer); "Push it" climbs to 4.2M / 6.6M
 let texSize = PRESETS[presetIdx].tex;
 const timer = new THREE.Timer(); timer.connect(document);
 

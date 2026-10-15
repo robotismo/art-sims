@@ -117,23 +117,23 @@ three morphable modes:
   **standing density waves** (Lin–Shu) — traffic-jams of orbits, not fixed stars.
 
 Stir the field with the cursor, orbit/dive with the mouse, switch modes to watch the cloud physically
-flow from one face to the next. An FPS-adaptive governor scales the particle count to keep 60fps and
-climbs toward the GPU's ceiling. *Controls: mode, reseed, flow scale, drift, glow, trails, particle
+flow from one face to the next. An FPS-adaptive governor thins the drawn particles (and the pixel ratio) to hold the frame
+rate; "Push it" steps up to the larger presets. *Controls: mode, reseed, flow scale, drift, glow, trails, particle
 count ("Push it"), Save PNG.*
 
 ### 07 · Genesis — `07-genesis/`
-A Newtonian **N-body galaxy encounter**: two massive cores, each wrapped in a disk of a million dust grains, interact
+A Newtonian **N-body galaxy encounter**: two massive cores, with a million dust grains shared between their disks, interact
 under gravity and shear into tidal bridges and arms — then the encounter auto-replays. Two selectable modes: **Flyby**
 (a grazing hyperbolic pass — the galaxies graze and part) and **Merge** (a bound eccentric dance that spirals together).
 Each grain is drawn as a short **velocity-aligned streak** (GL_LINES), so the gravitational flow itself becomes the
-structure rather than a smooth glow. *Controls: encounter (flyby/merge), galaxies (2–5), gravity, drift, glow, Save PNG.*
+structure rather than a smooth glow. *Controls: encounter (flyby/merge), galaxies (2–5, merge mode), gravity, drift, glow, Save PNG.*
 
 ### 08 · Magnetosphere — `08-magnetosphere/`
 Charged dust spirals down a planet's **magnetic dipole** field lines and burns in auroral sheets at the poles — the
 Lorentz force made visible.
 
 ### 09 · Maelstrom — `09-maelstrom/`
-A handful of **point vortices** stir a sea of tracer light into turbulence — storms that merge, orbit, and devour
+Forty **point vortices** stir a sea of tracer light into turbulence — storms that merge, orbit, and devour
 one another.
 
 ### 10 · Singularity — `10-singularity/`
@@ -184,8 +184,8 @@ forever without ever compressing it. Each mote is drawn not as a point but as a 
 segment**, so coherent currents read as silk and turbulence as braid — the light *is* the flow. A director eases the
 field through four **movements** — *Laminar → Turbulent → Vortical → Calm* — with randomized durations and freshly
 reseeded vortices each cycle, so it is a generative composition that **never repeats**. Stir it with the cursor and the
-divergence-free field heals the channel you carve. Default ~2.1M filaments at 60fps on an M2 Pro MacBook Pro; "Push it" climbs to
-4.2M / 6.6M. *Controls: reseed, turbulence, swirl, streak length, glow, particle count, Save PNG.*
+divergence-free field heals the channel you carve. By default ~2.1M filaments are simulated; an FPS governor draws a
+share of them (down to 45%) to hold the frame rate. "Push it" climbs to 4.2M / 6.6M. *Controls: reseed, turbulence, swirl, streak length, glow, particle count, Save PNG.*
 
 ---
 
