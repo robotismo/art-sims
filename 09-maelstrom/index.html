@@ -615,6 +615,9 @@ function buildComposer(){
 }
 function sizeComposer(){
   const s=stageSize();
+  // keep the composer's render targets at the renderer's CURRENT pixel ratio: the governor changes it at runtime, and a
+  // stale ratio drew pr-scaled points into 1x targets (phones started at pr 1, climbed to 2, and washed out to grey)
+  composer.setPixelRatio(renderer.getPixelRatio());
   composer.setSize(s.w,s.h);
   const br = (texSize>=1448)?0.5:1.0;             // halve bloom res at high counts
   bloomPass.setSize(s.w*br, s.h*br);
