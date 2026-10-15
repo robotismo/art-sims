@@ -44,8 +44,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .hud b{color:var(--gold2);font-weight:500}
 .modechip{position:absolute;top:12px;right:14px;font-family:ui-monospace,monospace;font-size:11px;
   letter-spacing:.22em;color:var(--gold);pointer-events:none;text-shadow:0 1px 3px #000}
-.hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:ui-monospace,monospace;
-  font-size:11px;color:var(--muted);opacity:.7;pointer-events:none;transition:opacity .6s}
+@media (max-width:600px){.modechip{top:30px}}   /* phone: the HUD line reaches the right edge, so drop the chip below it */
+.hint{position:absolute;bottom:12px;left:0;right:0;padding:0 14px;text-align:center;font-family:ui-monospace,monospace;
+  font-size:11px;color:var(--muted);opacity:.9;pointer-events:none;transition:opacity .6s;
+  text-shadow:0 1px 3px #000,0 0 6px #000,0 0 12px #000}   /* dark halo: readable over bright filaments */
 .banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
   padding:30px;color:var(--gold2);font-size:15px;line-height:1.6;background:#04060ae6}
 /* ── GPGPU guard banner link (CONVENTIONS d) ── */
@@ -82,7 +84,7 @@ a.back:focus-visible{outline:2px solid var(--gold);outline-offset:3px;color:var(
   <canvas id="c"></canvas>
   <div class="hud" id="hud">—</div>
   <div class="modechip" id="modechip">LAMINAR</div>
-  <div class="hint" id="hint">drag to comb the silk · scroll to dive · it heals as you go</div>
+  <div class="hint" id="hint">drag to comb the silk&nbsp;· scroll to dive&nbsp;· it heals as you go</div>
   <div class="banner" id="banner"></div>
 </div>
 
@@ -367,7 +369,7 @@ const banner = document.getElementById('banner');
     await new Promise(() => {});   // stop this module here: top-level await that never settles, no thrown error
   }
 }
-if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'drag to comb the silk · two fingers push · pinch to dive';
+if(matchMedia('(pointer: coarse)').matches) document.getElementById('hint').textContent = 'drag to comb the silk\u00a0· two fingers push\u00a0· pinch to dive';
 
 let renderer, scene, camera, controls, composer, bloomPass, gpu;
 let posVar, velVar, simU, points, geomRef = null;
@@ -741,7 +743,7 @@ function frame(dt, dtMs){
   // stir decay (the field heals after you let go)
   simU.uStirStrength.value += (stirTarget - simU.uStirStrength.value)*0.25; stirTarget *= 0.86;
   controls.autoRotate = !REDUCED && !paused && (performance.now()-lastInput > 6000);
-  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.7';
+  document.getElementById('hint').style.opacity = (performance.now()-lastInput>6000)?'0':'0.9';
 
   if(!paused) settleLeft = 0;
   const settling = paused && settleLeft > 0;
