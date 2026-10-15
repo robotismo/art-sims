@@ -239,8 +239,8 @@ under its owner's Pages domain, so that URL needs all of these (one-time setup):
 
 - the GitHub repo is named **`art-sims`** (a repo named `ArtSimulations` would serve at `/ArtSimulations/`, and
   every canonical/og/twitter URL would point at pages that do not exist);
-- `paredes.dev` is the custom domain of the owner's user site (`<user>.github.io`), so the owner's project sites
-  appear under `paredes.dev/<repo>/`;
+- the site's domain (the origin of the URL above) is the custom domain of the owner's user site
+  (`<user>.github.io`), so the owner's project sites appear under `<domain>/<repo>/`;
 - in this repo's settings, **Pages → Source** is **GitHub Actions**.
 
 ### Change the site origin
