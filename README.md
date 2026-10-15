@@ -124,7 +124,7 @@ count ("Push it"), Save PNG.*
 ### 07 · Genesis — `07-genesis/`
 A Newtonian **N-body galaxy encounter**: two massive cores, with a million dust grains shared between their disks, interact
 under gravity and shear into tidal bridges and arms — then the encounter auto-replays. Two selectable modes: **Flyby**
-(a grazing hyperbolic pass — the galaxies graze and part) and **Merge** (a bound eccentric dance that spirals together).
+(a slow, grazing prograde pass — the disks overlap at the rims and part, flinging out a bridge and two tails) and **Merge** (a bound eccentric dance that spirals together).
 Each grain is drawn as a short **velocity-aligned streak** (GL_LINES), so the gravitational flow itself becomes the
 structure rather than a smooth glow. *Controls: encounter (flyby/merge), galaxies (2–5, merge mode), gravity, drift, glow, Save PNG.*
 
