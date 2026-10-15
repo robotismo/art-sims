@@ -333,11 +333,26 @@ const RAMP=new Uint8Array(256*3);
   }
 })();
 
+/* Display-only 3×3 binomial ([1,2,1]/4 in x, then y) smoothing of the dye before tone-mapping. The shear layer at
+   the jet edge leaves cell-to-cell steps in dens that read as a blocky staircase once 150 cells are scaled to 760px;
+   this hides them. It reads dens and writes its own buffers, so the simulation itself is untouched. */
+const dTmp=new Float32Array(SZ), dShow=new Float32Array(SZ);
+function smoothDens(){
+  for(let j=0;j<=N+1;j++){
+    for(let i=1;i<=N;i++){ const k=IX(i,j); dTmp[k]=0.25*(dens[k-1]+2*dens[k]+dens[k+1]); }
+  }
+  const W=N+2;
+  for(let j=1;j<=N;j++){
+    for(let i=1;i<=N;i++){ const k=IX(i,j); dShow[k]=0.25*(dTmp[k-W]+2*dTmp[k]+dTmp[k+W]); }
+  }
+}
+
 function render(){
+  smoothDens();
   let p=0;
   for(let j=1;j<=N;j++){
     for(let i=1;i<=N;i++){
-      let d=dens[IX(i,j)];
+      let d=dShow[IX(i,j)];
       if(!(d>=0)) d=0;                  // NaN/neg guard: a single NaN would blank the canvas
       // tone-map: spread density across the ramp so the body reads GOLD, cores pale-gold.
       // gentler curve + mild gamma keeps the common mid-densities in the gold band.
